@@ -15,4 +15,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: planetariumhq/9c-world-boss-service:git-${{ github.sha }}
+          tags: planetariumhq/world-boss-service:git-${{ github.sha }}
