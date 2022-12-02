@@ -1,14 +1,13 @@
+import os
 import typing
 from decimal import Decimal
-from typing import Generator
-import os
 
 import pytest
 import sqlalchemy as sa
 from flask import Flask
 from flask.testing import FlaskClient
 from pytest_postgresql.janitor import DatabaseJanitor
-from pytest_redis import factories
+from pytest_redis import factories  # type: ignore
 
 from world_boss.app.models import WorldBossReward, WorldBossRewardAmount, Transaction
 from world_boss.wsgi import create_app
@@ -34,12 +33,6 @@ def database():
     janitor.init()
     yield
     janitor.drop()
-
-
-# @pytest.fixture(scope='session')
-# def fx_app(database) -> Generator[Flask, None, None]:
-#     fx_app = create_app(DB_CONN)
-#     yield fx_app
 
 
 @pytest.fixture(scope='session')

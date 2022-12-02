@@ -1,12 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy.orm import relationship
-
 from world_boss.app.currency import Currency
 from world_boss.app.orm import db
 
 
-class WorldBossRewardAmount(db.Model):
+class WorldBossRewardAmount(db.Model):  # type: ignore
     __table_name__ = "world_boss_reward_amount"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -35,7 +33,7 @@ class WorldBossRewardAmount(db.Model):
         }
 
 
-class WorldBossReward(db.Model):
+class WorldBossReward(db.Model):  # type: ignore
     __table_name__ = "world_boss_reward"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -44,6 +42,7 @@ class WorldBossReward(db.Model):
     agent_address = db.Column(db.String, nullable=False, index=True)
     ranking = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    # amounts = db.relationship('WorldBossRewardAmount', back_populates='reward')
 
     __table_args__ = (
         db.UniqueConstraint(raid_id, avatar_address, agent_address),
@@ -60,7 +59,7 @@ class WorldBossReward(db.Model):
         }
 
 
-class Transaction(db.Model):
+class Transaction(db.Model):  # type: ignore
     __table_name__ = "transaction"
 
     tx_id = db.Column(db.String, primary_key=True)

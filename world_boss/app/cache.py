@@ -1,14 +1,14 @@
 import os
 from datetime import timedelta
 
-import redis
+from redis import StrictRedis
 
 __all__ = [
     'cache_exists',
     'set_to_cache',
 ]
 
-rd = redis.StrictRedis(host=os.environ['REDIS_HOST'], port=int(os.environ['REDIS_PORT']), db=0)
+rd = StrictRedis(host=os.environ['REDIS_HOST'], port=int(os.environ['REDIS_PORT']), db=0)
 
 
 def cache_exists(key: str):

@@ -1,9 +1,9 @@
-from typing import Optional, List, AnyStr
+from typing import Optional, List, Union
 
 
 class Currency:
     def __init__(
-        self, *, decimal_places: int, ticker: str, minters: Optional[List[AnyStr]] = None
+        self, *, decimal_places: int, ticker: str, minters: Optional[List[Union[str, bytes]]] = None
     ) -> None:
         self.decimal_places = decimal_places
         self.minters = [

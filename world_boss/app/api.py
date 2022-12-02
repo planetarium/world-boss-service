@@ -11,6 +11,5 @@ def pong() -> str:
 
 
 @api.route('/raid/<raid_id>/<avatar_address>/rewards', methods=['GET'])
-def raid_rewards(raid_id: str, avatar_address: str):
-    raid_id = int(raid_id)
+def raid_rewards(raid_id: int, avatar_address: str):
     return get_raid_rewards(raid_id, avatar_address)

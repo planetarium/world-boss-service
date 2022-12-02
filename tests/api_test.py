@@ -1,4 +1,4 @@
-import pickle
+import json
 import time
 from datetime import timedelta
 
@@ -22,7 +22,7 @@ def test_raid_rewards(fx_test_client, fx_world_boss_reward_amounts, redisdb, cac
     avatar_address = fx_world_boss_reward_amounts[0].reward.avatar_address
     if caching:
         cache_key = f'raid_rewards_{avatar_address}_{raid_id}'
-        set_to_cache(cache_key, pickle.dumps(reward.as_dict()), timedelta(seconds=1))
+        set_to_cache(cache_key, json.dumps(reward.as_dict()), timedelta(seconds=1))
     req = fx_test_client.get(f'/raid/{raid_id}/{avatar_address}/rewards')
     assert req.status_code == 200
     assert req.json == reward.as_dict()
