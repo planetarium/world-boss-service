@@ -5,6 +5,11 @@ repos:
     -   id: mypy
         args: [--no-strict-optional, --ignore-missing-imports]
         additional_dependencies: [types-redis==4.3.21.6]
+-   repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+    -   id: black
+        args: [world_boss, tests]
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:

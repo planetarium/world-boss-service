@@ -9,14 +9,14 @@ from world_boss.app.models import WorldBossReward
 
 
 def get_raid_rewards(raid_id: int, avatar_address: str):
-    avatar_address = avatar_address.replace('0x', '')
+    avatar_address = avatar_address.replace("0x", "")
 
-    cache_key = f'raid_rewards_{avatar_address}_{raid_id}'
+    cache_key = f"raid_rewards_{avatar_address}_{raid_id}"
     if cache_exists(cache_key):
         cached_value = cast(Union[str, bytes], rd.get(cache_key))
         cached_result = json.loads(cached_value)
         resp = jsonify(cached_result)
-        resp.headers['X-9c-onboarding-portal-response-cached'] = cache_key
+        resp.headers["X-9c-onboarding-portal-response-cached"] = cache_key
         return resp
 
     reward = WorldBossReward.query.filter_by(

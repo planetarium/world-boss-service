@@ -11,25 +11,33 @@ class WorldBossRewardAmount(db.Model):  # type: ignore
     amount = db.Column(db.Numeric, nullable=False)
     ticker = db.Column(db.String, nullable=False)
     decimal_places = db.Column(db.Integer, nullable=False)
-    tx_id = db.Column(db.String, db.ForeignKey('transaction.tx_id'), nullable=False)
-    transaction = db.relationship('Transaction', backref=db.backref('amounts', lazy=True))
-    reward_id = db.Column(db.Integer, db.ForeignKey('world_boss_reward.id'), nullable=False)
-    reward = db.relationship('WorldBossReward', backref=db.backref('amounts', lazy=True))
+    tx_id = db.Column(db.String, db.ForeignKey("transaction.tx_id"), nullable=False)
+    transaction = db.relationship(
+        "Transaction", backref=db.backref("amounts", lazy=True)
+    )
+    reward_id = db.Column(
+        db.Integer, db.ForeignKey("world_boss_reward.id"), nullable=False
+    )
+    reward = db.relationship(
+        "WorldBossReward", backref=db.backref("amounts", lazy=True)
+    )
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def as_dict(self) -> dict:
         return {
-            'amount': int(self.amount),
-            'ticker': self.ticker,
-            'tx_id': self.tx_id,
-            'decimal_places': self.decimal_places,
-            'tx_result': self.transaction.tx_result,
+            "amount": int(self.amount),
+            "ticker": self.ticker,
+            "tx_id": self.tx_id,
+            "decimal_places": self.decimal_places,
+            "tx_result": self.transaction.tx_result,
         }
 
     def as_fav(self) -> dict:
         return {
-            'amount': self.amount,
-            'currency': Currency(decimal_places=self.decimal_places, minters=None, ticker=self.ticker)
+            "amount": self.amount,
+            "currency": Currency(
+                decimal_places=self.decimal_places, minters=None, ticker=self.ticker
+            ),
         }
 
 
@@ -55,7 +63,7 @@ class WorldBossReward(db.Model):  # type: ignore
             "agentAddress": self.agent_address,
             "raidId": self.raid_id,
             "ranking": self.ranking,
-            "rewards": [r.as_dict() for r in self.amounts]
+            "rewards": [r.as_dict() for r in self.amounts],
         }
 
 
@@ -69,6 +77,4 @@ class Transaction(db.Model):  # type: ignore
     nonce = db.Column(db.Integer, nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    __table_args__ = (
-        db.UniqueConstraint(signer, nonce),
-    )
+    __table_args__ = (db.UniqueConstraint(signer, nonce),)
