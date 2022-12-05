@@ -1,29 +1,28 @@
+import os
 import typing
 from decimal import Decimal
-from typing import Generator
-import os
 
 import pytest
 import sqlalchemy as sa
 from flask import Flask
 from flask.testing import FlaskClient
 from pytest_postgresql.janitor import DatabaseJanitor
-from pytest_redis import factories
+from pytest_redis import factories  # type: ignore
 
 from world_boss.app.models import WorldBossReward, WorldBossRewardAmount, Transaction
 from world_boss.wsgi import create_app
 
 redis_proc = factories.redis_proc(port=6379)
 
-DB_CONN = f"postgresql://{os.environ['TEST_DB_USER']}:{os.environ['TEST_DB_PASS']}@{os.environ['TEST_DB_HOST']}:5432/{os.environ['TEST_DB_NAME']}" # noqa
+DB_CONN = f"postgresql://{os.environ['TEST_DB_USER']}:{os.environ['TEST_DB_PASS']}@{os.environ['TEST_DB_HOST']}:5432/{os.environ['TEST_DB_NAME']}"  # noqa
 DB_OPTS = sa.engine.url.make_url(DB_CONN).translate_connect_args()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def database():
-    '''
+    """
     Create a Postgres database for the tests, and drop it when the tests are done.
-    '''
+    """
     pg_host = DB_OPTS.get("host")
     pg_port = DB_OPTS.get("port")
     pg_user = DB_OPTS.get("username")
@@ -36,13 +35,7 @@ def database():
     janitor.drop()
 
 
-# @pytest.fixture(scope='session')
-# def fx_app(database) -> Generator[Flask, None, None]:
-#     fx_app = create_app(DB_CONN)
-#     yield fx_app
-
-
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def fx_app(database) -> Flask:
     fx_app = create_app(DB_CONN)
     ctx = fx_app.app_context()
@@ -52,11 +45,11 @@ def fx_app(database) -> Flask:
 
 @pytest.fixture
 def fx_session(fx_app):
-    '''
+    """
     Provide the transactional fixtures with access to the database via a Flask-SQLAlchemy
     database connection.
-    '''
-    fx_db = fx_app.extensions['sqlalchemy'].db
+    """
+    fx_db = fx_app.extensions["sqlalchemy"].db
     fx_db.session.rollback()
     fx_db.drop_all()
     fx_db.session.commit()
@@ -73,8 +66,8 @@ def fx_test_client(fx_app: Flask) -> FlaskClient:
 @pytest.fixture()
 def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmount]:
     reward = WorldBossReward()
-    reward.avatar_address = 'avatar_address'
-    reward.agent_address = 'agent_address'
+    reward.avatar_address = "avatar_address"
+    reward.agent_address = "agent_address"
     reward.raid_id = 1
     reward.ranking = 1
     result = []
@@ -82,7 +75,7 @@ def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmoun
     i = 1
     for ticker, decimal_places in [("CRYSTAL", 18), ("RUNE_FENRIR1", 0)]:
         reward_amount = WorldBossRewardAmount()
-        reward_amount.amount = Decimal('10')
+        reward_amount.amount = Decimal("10")
         reward_amount.ticker = ticker
         reward_amount.decimal_places = decimal_places
         reward_amount.reward = reward
@@ -90,8 +83,8 @@ def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmoun
         reward_amount.tx_id = tx_id
         transaction = Transaction()
         transaction.tx_id = tx_id
-        transaction.signer = 'signer'
-        transaction.payload = f'10 {ticker}'
+        transaction.signer = "signer"
+        transaction.payload = f"10 {ticker}"
         transaction.nonce = i
         fx_session.add(reward_amount)
         fx_session.add(transaction)
