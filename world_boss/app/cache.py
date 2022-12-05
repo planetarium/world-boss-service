@@ -5,6 +5,7 @@ from redis import StrictRedis
 
 __all__ = [
     "cache_exists",
+    "rd",
     "set_to_cache",
 ]
 

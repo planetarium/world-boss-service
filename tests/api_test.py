@@ -26,7 +26,7 @@ def test_raid_rewards(
     raid_id = reward.raid_id
     avatar_address = fx_world_boss_reward_amounts[0].reward.avatar_address
     if caching:
-        cache_key = f"raid_rewards_{avatar_address}_{raid_id}"
+        cache_key = f"raid_rewards_{avatar_address}_{raid_id}_json"
         set_to_cache(cache_key, json.dumps(reward.as_dict()), timedelta(seconds=1))
     req = fx_test_client.get(f"/raid/{raid_id}/{avatar_address}/rewards")
     assert req.status_code == 200
