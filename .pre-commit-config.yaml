@@ -4,7 +4,10 @@ repos:
     hooks:
     -   id: mypy
         args: [--no-strict-optional, --ignore-missing-imports]
-        additional_dependencies: [types-redis==4.3.21.6]
+        additional_dependencies: [
+            types-redis==4.3.21.6,
+            types-requests==2.28.11.5,
+        ]
 -   repo: https://github.com/psf/black
     rev: 22.10.0
     hooks:

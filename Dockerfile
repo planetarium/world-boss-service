@@ -1,4 +1,4 @@
-FROM python:3.11.0-bullseye
+FROM python:3.10.8-bullseye
 
 ARG POETRY_VERSION=1.2.2
 
