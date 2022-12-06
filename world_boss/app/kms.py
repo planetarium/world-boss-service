@@ -148,10 +148,8 @@ class KmsWorldBossSigner:
         }
             """
         headless_urls = HEADLESS_URLS[network_type]
-        transactions = (
-            Transaction.query.filter_by(tx_result=None)
-            .order_by(Transaction.nonce)
-            .all()
+        transactions = Transaction.query.filter_by(tx_result=None).order_by(
+            Transaction.nonce
         )
         for transaction in transactions:
             for headless_url in headless_urls:
@@ -176,10 +174,8 @@ class KmsWorldBossSigner:
             }
             """
         headless_url = MINER_URLS[network_type]
-        transactions = (
-            Transaction.query.filter_by(tx_result=None)
-            .order_by(Transaction.nonce)
-            .all()
+        transactions = Transaction.query.filter_by(tx_result=None).order_by(
+            Transaction.nonce
         )
         for transaction in transactions:
             variables = {

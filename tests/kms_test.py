@@ -94,6 +94,6 @@ def test_check_transaction_status(fx_session, requests_mock, network_type: Netwo
             },
         )
         signer.check_transaction_status(network_type)
-    transactions = fx_session.query(Transaction).all()
+    transactions = fx_session.query(Transaction)
     for transaction in transactions:
         assert transaction.tx_result == "SUCCESS"
