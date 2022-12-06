@@ -37,6 +37,7 @@ pytest-redis = "^2.4.0"
 pre-commit = "^2.20.0"
 black = "^22.10.0"
 bencodex = "^1.0.1"
+requests-mock = "^1.10.0"
 
 [tool.pytest.ini_options]
 env_files = ".test.env"

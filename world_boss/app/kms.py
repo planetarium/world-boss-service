@@ -14,8 +14,25 @@ from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
 from pyasn1.type.univ import Integer, SequenceOf  # type: ignore
 
+from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
+
+
+MINER_URLS: dict[NetworkType, str] = {
+    NetworkType.MAIN: "http://9c-main-miner-3.nine-chronicles.com/graphql",
+    NetworkType.INTERNAL: "http://a778316ca16af4065a02dc2753c1a0fc-1775306312.us-east-2.elb.amazonaws.com/graphql",
+}
+
+HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {
+    NetworkType.MAIN: [
+        MINER_URLS[NetworkType.MAIN],
+    ],
+    NetworkType.INTERNAL: [
+        MINER_URLS[NetworkType.INTERNAL],
+        "http://9c-internal-rpc-1.nine-chronicles.com/graphql",
+    ],
+}
 
 
 class KmsWorldBossSigner:
@@ -34,7 +51,9 @@ class KmsWorldBossSigner:
     def address(self) -> str:
         return ethereum_kms_signer.get_eth_address(self._key_id)
 
-    def _sign_and_save(self, headless_url: str, unsigned_transaction: bytes) -> None:
+    def _sign_and_save(
+        self, headless_url: str, unsigned_transaction: bytes, nonce: int
+    ) -> Transaction:
         account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
         msg_hash = hashlib.sha256(unsigned_transaction).digest()
         _, r, s = account.sign_msg_hash(msg_hash).vrs
@@ -49,7 +68,7 @@ class KmsWorldBossSigner:
         signed_transaction = self._sign_transaction(
             headless_url, unsigned_transaction, signature
         )
-        self._save_transaction(signed_transaction)
+        return self._save_transaction(signed_transaction, nonce)
 
     def _sign_transaction(
         self, headless_url: str, unsigned_transaction: bytes, signature: bytes
@@ -81,15 +100,16 @@ class KmsWorldBossSigner:
         )
         return result.json()
 
-    def _save_transaction(self, signed_transaction: bytes):
+    def _save_transaction(self, signed_transaction: bytes, nonce) -> Transaction:
         transaction = Transaction()
         tx_id = hashlib.sha256(signed_transaction).hexdigest()
         transaction.tx_id = tx_id
-        transaction.nonce = 1
+        transaction.nonce = nonce
         transaction.signer = self.address
         transaction.payload = signed_transaction.hex()
         db.session.add(transaction)
         db.session.commit()
+        return transaction
 
     def transfer_assets(
         self,
@@ -98,7 +118,7 @@ class KmsWorldBossSigner:
         recipients: typing.List[typing.Dict],
         memo: str,
         headless_url: str,
-    ) -> None:
+    ) -> Transaction:
         query = """
         query($publicKey: String!, $timeStamp: DateTimeOffset!, $nonce: Long, $sender: Address! $recipients: [RecipientsInputType!]!, $memo: String) {
           actionTxQuery(publicKey: $publicKey, timestamp: $timeStamp, nonce: $nonce) {
@@ -119,7 +139,58 @@ class KmsWorldBossSigner:
         unsigned_transaction = bytes.fromhex(
             result["data"]["actionTxQuery"]["transferAssets"]
         )
-        self._sign_and_save(headless_url, unsigned_transaction)
+        return self._sign_and_save(headless_url, unsigned_transaction, nonce)
+
+    def stage_transactions(self, network_type: NetworkType) -> None:
+        query = """
+        mutation($payload: String!) {
+          stageTransaction(payload: $payload)
+        }
+            """
+        headless_urls = HEADLESS_URLS[network_type]
+        transactions = (
+            Transaction.query.filter_by(tx_result=None)
+            .order_by(Transaction.nonce)
+            .all()
+        )
+        for transaction in transactions:
+            for headless_url in headless_urls:
+                variables = {
+                    "payload": transaction.payload,
+                }
+                result = self._query(headless_url, query, variables)
+                print(result)
+
+    def check_transaction_status(self, network_type: NetworkType):
+        query = """
+            query($txId: TxId!) {
+              transaction {
+                transactionResult(txId: $txId) {
+                  blockHash
+                  blockIndex
+                  txStatus
+                  exceptionName
+                  exceptionMetadata
+                }
+              }
+            }
+            """
+        headless_url = MINER_URLS[network_type]
+        transactions = (
+            Transaction.query.filter_by(tx_result=None)
+            .order_by(Transaction.nonce)
+            .all()
+        )
+        for transaction in transactions:
+            variables = {
+                "txId": transaction.tx_id,
+            }
+            result = self._query(headless_url, query, variables)
+            tx_result = result["data"]["transaction"]["transactionResult"]
+            tx_status = tx_result["txStatus"]
+            transaction.tx_result = tx_status
+            db.session.add(transaction)
+        db.session.commit()
 
 
 signer = KmsWorldBossSigner(os.environ["KMS_KEY_ID"])

@@ -86,7 +86,6 @@ def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmoun
         transaction.signer = "signer"
         transaction.payload = f"10 {ticker}"
         transaction.nonce = i
-        fx_session.add(reward_amount)
         fx_session.add(transaction)
         result.append(reward_amount)
         i += 1
