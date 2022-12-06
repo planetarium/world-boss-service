@@ -9,7 +9,7 @@ from world_boss.app.models import Transaction
 
 
 def test_address():
-    assert signer.address == "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    assert signer.address == "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa"
 
 
 def test_transfer_assets(fx_session):

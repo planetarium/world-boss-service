@@ -31,5 +31,10 @@ jobs:
           redis-version: 4
           auto-start: false
       - name: Test with pytest
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+          KMS_KEY_ID: ${{ secrets.KMS_KEY_ID }}
         run: |
           poetry run pytest -x --ff --redis-exec=$(which redis-server)
