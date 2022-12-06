@@ -8,7 +8,7 @@ import base64
 import ethereum_kms_signer  # type: ignore
 import hashlib
 
-import requests
+import httpx
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
 from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
@@ -38,6 +38,7 @@ HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {
 class KmsWorldBossSigner:
     def __init__(self, key_id: str):
         self._key_id = key_id
+        self.client = httpx.AsyncClient()
 
     @property
     def public_key(self) -> bytes:
@@ -51,7 +52,7 @@ class KmsWorldBossSigner:
     def address(self) -> str:
         return ethereum_kms_signer.get_eth_address(self._key_id)
 
-    def _sign_and_save(
+    async def _sign_and_save(
         self, headless_url: str, unsigned_transaction: bytes, nonce: int
     ) -> Transaction:
         account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
@@ -65,12 +66,12 @@ class KmsWorldBossSigner:
         seq = SequenceOf(componentType=Integer())
         seq.extend([r, min(s, n - s)])
         signature = der_encode(seq)
-        signed_transaction = self._sign_transaction(
+        signed_transaction = await self._sign_transaction(
             headless_url, unsigned_transaction, signature
         )
         return self._save_transaction(signed_transaction, nonce)
 
-    def _sign_transaction(
+    async def _sign_transaction(
         self, headless_url: str, unsigned_transaction: bytes, signature: bytes
     ) -> bytes:
         query = """
@@ -86,16 +87,16 @@ class KmsWorldBossSigner:
             "signature": signature.hex(),
         }
 
-        result = self._query(headless_url, query, variables)
+        result = await self._query(headless_url, query, variables)
         return bytes.fromhex(result["data"]["transaction"]["signTransaction"])
 
     @backoff.on_exception(
         backoff.expo,
-        (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
+        (httpx.ConnectTimeout, httpx.ConnectError),
         max_tries=5,
     )
-    def _query(self, headless_url: str, query: str, variables: dict):
-        result = requests.post(
+    async def _query(self, headless_url: str, query: str, variables: dict):
+        result = await self.client.post(
             headless_url, json={"query": query, "variables": variables}
         )
         return result.json()
@@ -111,7 +112,7 @@ class KmsWorldBossSigner:
         db.session.commit()
         return transaction
 
-    def transfer_assets(
+    async def transfer_assets(
         self,
         time_stamp: datetime.datetime,
         nonce: int,
@@ -135,13 +136,13 @@ class KmsWorldBossSigner:
             "memo": memo,
         }
 
-        result = self._query(headless_url, query, variables)
+        result = await self._query(headless_url, query, variables)
         unsigned_transaction = bytes.fromhex(
             result["data"]["actionTxQuery"]["transferAssets"]
         )
-        return self._sign_and_save(headless_url, unsigned_transaction, nonce)
+        return await self._sign_and_save(headless_url, unsigned_transaction, nonce)
 
-    def stage_transactions(self, network_type: NetworkType) -> None:
+    async def stage_transactions(self, network_type: NetworkType) -> None:
         query = """
         mutation($payload: String!) {
           stageTransaction(payload: $payload)
@@ -156,10 +157,9 @@ class KmsWorldBossSigner:
                 variables = {
                     "payload": transaction.payload,
                 }
-                result = self._query(headless_url, query, variables)
-                print(result)
+                await self._query(headless_url, query, variables)
 
-    def check_transaction_status(self, network_type: NetworkType):
+    async def check_transaction_status(self, network_type: NetworkType):
         query = """
             query($txId: TxId!) {
               transaction {
@@ -181,7 +181,7 @@ class KmsWorldBossSigner:
             variables = {
                 "txId": transaction.tx_id,
             }
-            result = self._query(headless_url, query, variables)
+            result = await self._query(headless_url, query, variables)
             tx_result = result["data"]["transaction"]["transactionResult"]
             tx_status = tx_result["txStatus"]
             transaction.tx_result = tx_status

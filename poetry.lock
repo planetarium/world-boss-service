@@ -14,6 +14,23 @@ SQLAlchemy = ">=1.3.0"
 tz = ["python-dateutil"]
 
 [[package]]
+name = "anyio"
+version = "3.6.2"
+description = "High level compatibility layer for multiple asynchronous event loop implementations"
+category = "main"
+optional = false
+python-versions = ">=3.6.2"
+
+[package.dependencies]
+idna = ">=2.8"
+sniffio = ">=1.1"
+
+[package.extras]
+doc = ["packaging", "sphinx-autodoc-typehints (>=1.2.0)", "sphinx-rtd-theme"]
+test = ["contextlib2", "coverage[toml] (>=4.5)", "hypothesis (>=4.0)", "mock (>=4)", "pytest (>=7.0)", "pytest-mock (>=3.6.1)", "trustme", "uvloop (<0.15)", "uvloop (>=0.15)"]
+trio = ["trio (>=0.16,<0.22)"]
+
+[[package]]
 name = "async-timeout"
 version = "4.0.2"
 description = "Timeout context manager for asyncio programs"
@@ -491,17 +508,6 @@ optional = false
 python-versions = ">=3.6.1"
 
 [[package]]
-name = "charset-normalizer"
-version = "2.1.1"
-description = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
-category = "main"
-optional = false
-python-versions = ">=3.6.0"
-
-[package.extras]
-unicode-backport = ["unicodedata2"]
-
-[[package]]
 name = "click"
 version = "8.1.3"
 description = "Composable command line interface toolkit"
@@ -815,6 +821,14 @@ setproctitle = ["setproctitle"]
 tornado = ["tornado (>=0.2)"]
 
 [[package]]
+name = "h11"
+version = "0.14.0"
+description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "hexbytes"
 version = "0.2.3"
 description = "hexbytes: Python `bytes` subclass that decodes hex, with a readable console output"
@@ -827,6 +841,44 @@ dev = ["Sphinx (>=1.6.5,<2)", "black (>=22,<23)", "bumpversion (>=0.5.3,<1)", "e
 doc = ["Sphinx (>=1.6.5,<2)", "jinja2 (>=3.0.0,<3.1.0)", "sphinx-rtd-theme (>=0.1.9,<1)", "towncrier (>=21,<22)"]
 lint = ["black (>=22,<23)", "flake8 (==3.7.9)", "isort (>=4.2.15,<5)", "mypy (==0.971)", "pydocstyle (>=5.0.0,<6)"]
 test = ["eth-utils (>=1.0.1,<2)", "hypothesis (>=3.44.24,<=6.31.6)", "pytest (>=7,<8)", "pytest-xdist", "tox (>=3.25.1,<4)"]
+
+[[package]]
+name = "httpcore"
+version = "0.16.2"
+description = "A minimal low-level HTTP client."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+anyio = ">=3.0,<5.0"
+certifi = "*"
+h11 = ">=0.13,<0.15"
+sniffio = ">=1.0.0,<2.0.0"
+
+[package.extras]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (>=1.0.0,<2.0.0)"]
+
+[[package]]
+name = "httpx"
+version = "0.23.1"
+description = "The next generation HTTP client."
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+certifi = "*"
+httpcore = ">=0.15.0,<0.17.0"
+rfc3986 = {version = ">=1.3,<2", extras = ["idna2008"]}
+sniffio = "*"
+
+[package.extras]
+brotli = ["brotli", "brotlicffi"]
+cli = ["click (>=8.0.0,<9.0.0)", "pygments (>=2.0.0,<3.0.0)", "rich (>=10,<13)"]
+http2 = ["h2 (>=3,<5)"]
+socks = ["socksio (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "identify"
@@ -1148,6 +1200,20 @@ tomli = {version = ">=1.0.0", markers = "python_version < \"3.11\""}
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "xmlschema"]
 
 [[package]]
+name = "pytest-asyncio"
+version = "0.20.2"
+description = "Pytest support for asyncio"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+pytest = ">=6.1.0"
+
+[package.extras]
+testing = ["coverage (>=6.2)", "flaky (>=3.5.0)", "hypothesis (>=5.7.1)", "mypy (>=0.931)", "pytest-trio (>=0.7.0)"]
+
+[[package]]
 name = "pytest-dotenv"
 version = "0.5.2"
 description = "A py.test plugin that parses environment files before running tests"
@@ -1176,6 +1242,21 @@ SQLAlchemy = ">=1.2.2"
 
 [package.extras]
 tests = ["psycopg2-binary", "pytest (>=6.0.1)", "pytest-postgresql (>=2.4.0,<4.0.0)"]
+
+[[package]]
+name = "pytest-httpx"
+version = "0.21.2"
+description = "Send responses to httpx."
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+
+[package.dependencies]
+httpx = ">=0.23.0,<0.24.0"
+pytest = ">=6,<8"
+
+[package.extras]
+testing = ["pytest-asyncio (>=0.20.0,<0.21.0)", "pytest-cov (>=4.0.0,<5.0.0)"]
 
 [[package]]
 name = "pytest-mock"
@@ -1226,6 +1307,21 @@ redis = "*"
 tests = ["mock", "pytest-cov", "pytest-xdist"]
 
 [[package]]
+name = "pytest-timer"
+version = "0.0.11"
+description = "A timer plugin for pytest"
+category = "dev"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+pytest = "*"
+
+[package.extras]
+colorama = ["colorama"]
+termcolor = ["termcolor"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
@@ -1271,38 +1367,18 @@ hiredis = ["hiredis (>=1.0.0)"]
 ocsp = ["cryptography (>=36.0.1)", "pyopenssl (==20.0.1)", "requests (>=2.26.0)"]
 
 [[package]]
-name = "requests"
-version = "2.28.1"
-description = "Python HTTP for Humans."
+name = "rfc3986"
+version = "1.5.0"
+description = "Validating URI References per RFC 3986"
 category = "main"
-optional = false
-python-versions = ">=3.7, <4"
-
-[package.dependencies]
-certifi = ">=2017.4.17"
-charset-normalizer = ">=2,<3"
-idna = ">=2.5,<4"
-urllib3 = ">=1.21.1,<1.27"
-
-[package.extras]
-socks = ["PySocks (>=1.5.6,!=1.5.7)"]
-use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
-
-[[package]]
-name = "requests-mock"
-version = "1.10.0"
-description = "Mock out responses from the requests package"
-category = "dev"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-requests = ">=2.3,<3"
-six = "*"
+idna = {version = "*", optional = true, markers = "extra == \"idna2008\""}
 
 [package.extras]
-fixture = ["fixtures"]
-test = ["fixtures", "mock", "purl", "pytest", "requests-futures", "sphinx", "testrepository (>=0.0.18)", "testtools"]
+idna2008 = ["idna"]
 
 [[package]]
 name = "rlp"
@@ -1356,6 +1432,14 @@ description = "Python 2 and 3 compatibility utilities"
 category = "main"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
+
+[[package]]
+name = "sniffio"
+version = "1.3.0"
+description = "Sniff out which async library your code is running under"
+category = "main"
+optional = false
+python-versions = ">=3.7"
 
 [[package]]
 name = "sqlalchemy"
@@ -1463,17 +1547,6 @@ optional = false
 python-versions = "*"
 
 [[package]]
-name = "types-requests"
-version = "2.28.11.5"
-description = "Typing stubs for requests"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-types-urllib3 = "<1.27"
-
-[[package]]
 name = "types-s3transfer"
 version = "0.6.0.post5"
 description = "Type annotations and code completion for s3transfer"
@@ -1563,12 +1636,16 @@ watchdog = ["watchdog"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "fa4cc212c257f70ffbe5238de90c8c7dd17a79c68e112513a6fc5a9d1519f8b2"
+content-hash = "388e12814a43d84ebdff774ce9a1f5c9da4fd2fe8de567db01aa10a930175809"
 
 [metadata.files]
 alembic = [
     {file = "alembic-1.8.1-py3-none-any.whl", hash = "sha256:0a024d7f2de88d738d7395ff866997314c837be6104e90c5724350313dee4da4"},
     {file = "alembic-1.8.1.tar.gz", hash = "sha256:cd0b5e45b14b706426b833f06369b9a6d5ee03f826ec3238723ce8caaf6e5ffa"},
+]
+anyio = [
+    {file = "anyio-3.6.2-py3-none-any.whl", hash = "sha256:fbbe32bd270d2a2ef3ed1c5d45041250284e31fc0a4df4a5a6071842051a51e3"},
+    {file = "anyio-3.6.2.tar.gz", hash = "sha256:25ea0d673ae30af41a0c442f81cf3b38c7e79fdc7b60335a4c14e05eb0947421"},
 ]
 async-timeout = [
     {file = "async-timeout-4.0.2.tar.gz", hash = "sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15"},
@@ -1706,10 +1783,6 @@ certifi = [
 cfgv = [
     {file = "cfgv-3.3.1-py2.py3-none-any.whl", hash = "sha256:c6a0883f3917a037485059700b9e75da2464e6c27051014ad85ba6aaa5884426"},
     {file = "cfgv-3.3.1.tar.gz", hash = "sha256:f5a830efb9ce7a445376bb66ec94c638a9787422f96264c98edc6bdeed8ab736"},
-]
-charset-normalizer = [
-    {file = "charset-normalizer-2.1.1.tar.gz", hash = "sha256:5a3d016c7c547f69d6f81fb0db9449ce888b418b5b9952cc5e6e66843e9dd845"},
-    {file = "charset_normalizer-2.1.1-py3-none-any.whl", hash = "sha256:83e9a75d1911279afd89352c68b45348559d1fc0506b054b346651b5e7fee29f"},
 ]
 click = [
     {file = "click-8.1.3-py3-none-any.whl", hash = "sha256:bb4d8133cb15a609f44e8213d9b391b0809795062913b383c62be0ee95b1db48"},
@@ -1934,9 +2007,21 @@ gunicorn = [
     {file = "gunicorn-20.1.0-py3-none-any.whl", hash = "sha256:9dcc4547dbb1cb284accfb15ab5667a0e5d1881cc443e0677b4882a4067a807e"},
     {file = "gunicorn-20.1.0.tar.gz", hash = "sha256:e0a968b5ba15f8a328fdfd7ab1fcb5af4470c28aaf7e55df02a99bc13138e6e8"},
 ]
+h11 = [
+    {file = "h11-0.14.0-py3-none-any.whl", hash = "sha256:e3fe4ac4b851c468cc8363d500db52c2ead036020723024a109d37346efaa761"},
+    {file = "h11-0.14.0.tar.gz", hash = "sha256:8f19fbbe99e72420ff35c00b27a34cb9937e902a8b810e2c88300c6f0a3b699d"},
+]
 hexbytes = [
     {file = "hexbytes-0.2.3-py3-none-any.whl", hash = "sha256:1b33a3f101084763551e0094dbf35104868dfa82ba48787a1ca77f81ce15a44c"},
     {file = "hexbytes-0.2.3.tar.gz", hash = "sha256:199daa356aeb14879ee9c43de637acaaa1409febf15151a0e3dbcf1f8df128c0"},
+]
+httpcore = [
+    {file = "httpcore-0.16.2-py3-none-any.whl", hash = "sha256:52c79095197178856724541e845f2db86d5f1527640d9254b5b8f6f6cebfdee6"},
+    {file = "httpcore-0.16.2.tar.gz", hash = "sha256:c35c5176dc82db732acfd90b581a3062c999a72305df30c0fc8fafd8e4aca068"},
+]
+httpx = [
+    {file = "httpx-0.23.1-py3-none-any.whl", hash = "sha256:0b9b1f0ee18b9978d637b0776bfd7f54e2ca278e063e3586d8f01cda89e042a8"},
+    {file = "httpx-0.23.1.tar.gz", hash = "sha256:202ae15319be24efe9a8bd4ed4360e68fde7b38bcc2ce87088d416f026667d19"},
 ]
 identify = [
     {file = "identify-2.5.9-py2.py3-none-any.whl", hash = "sha256:a390fb696e164dbddb047a0db26e57972ae52fbd037ae68797e5ae2f4492485d"},
@@ -2214,6 +2299,10 @@ pytest = [
     {file = "pytest-7.2.0-py3-none-any.whl", hash = "sha256:892f933d339f068883b6fd5a459f03d85bfcb355e4981e146d2c7616c21fef71"},
     {file = "pytest-7.2.0.tar.gz", hash = "sha256:c4014eb40e10f11f355ad4e3c2fb2c6c6d1919c73f3b5a433de4708202cade59"},
 ]
+pytest-asyncio = [
+    {file = "pytest-asyncio-0.20.2.tar.gz", hash = "sha256:32a87a9836298a881c0ec637ebcc952cfe23a56436bdc0d09d1511941dd8a812"},
+    {file = "pytest_asyncio-0.20.2-py3-none-any.whl", hash = "sha256:07e0abf9e6e6b95894a39f688a4a875d63c2128f76c02d03d16ccbc35bcc0f8a"},
+]
 pytest-dotenv = [
     {file = "pytest-dotenv-0.5.2.tar.gz", hash = "sha256:2dc6c3ac6d8764c71c6d2804e902d0ff810fa19692e95fe138aefc9b1aa73732"},
     {file = "pytest_dotenv-0.5.2-py3-none-any.whl", hash = "sha256:40a2cece120a213898afaa5407673f6bd924b1fa7eafce6bda0e8abffe2f710f"},
@@ -2221,6 +2310,10 @@ pytest-dotenv = [
 pytest-flask-sqlalchemy = [
     {file = "pytest-flask-sqlalchemy-1.1.0.tar.gz", hash = "sha256:db71a57b90435e5d854b21c37a2584056d6fc3ddb28c09d8d0a2546bd6e390ff"},
     {file = "pytest_flask_sqlalchemy-1.1.0-py3-none-any.whl", hash = "sha256:b9f272d5c4092fcbe4a6284e402a37cad84f5b9be3c0bbe1a11927f24c99ff83"},
+]
+pytest-httpx = [
+    {file = "pytest_httpx-0.21.2-py3-none-any.whl", hash = "sha256:a6ea51ab4e603507b4e91ac868e62c8a40dde85ded9f5dd71d6e29b0e8d5a217"},
+    {file = "pytest_httpx-0.21.2.tar.gz", hash = "sha256:39596a2caa7aeb384de7f1cf134bcc4595177a449af7d0fc9bd5916cad515464"},
 ]
 pytest-mock = [
     {file = "pytest-mock-3.10.0.tar.gz", hash = "sha256:fbbdb085ef7c252a326fd8cdcac0aa3b1333d8811f131bdcc701002e1be7ed4f"},
@@ -2233,6 +2326,9 @@ pytest-postgresql = [
 pytest-redis = [
     {file = "pytest-redis-2.4.0.tar.gz", hash = "sha256:8a07520abed3cd341e8da1793059aa5717b02e56c43e7c76435db682cede10aa"},
     {file = "pytest_redis-2.4.0-py3-none-any.whl", hash = "sha256:3cf00ad3f7241e38ce6f1bcb66af11b91956a889f1e216cfc026e81aa638a4e7"},
+]
+pytest-timer = [
+    {file = "pytest-timer-0.0.11.tar.gz", hash = "sha256:440f3e6536cb68fd06617485f0b199414abab4a116de59065b08f7c7262f5c91"},
 ]
 python-dateutil = [
     {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
@@ -2288,13 +2384,9 @@ redis = [
     {file = "redis-4.4.0-py3-none-any.whl", hash = "sha256:cae3ee5d1f57d8caf534cd8764edf3163c77e073bdd74b6f54a87ffafdc5e7d9"},
     {file = "redis-4.4.0.tar.gz", hash = "sha256:7b8c87d19c45d3f1271b124858d2a5c13160c4e74d4835e28273400fa34d5228"},
 ]
-requests = [
-    {file = "requests-2.28.1-py3-none-any.whl", hash = "sha256:8fefa2a1a1365bf5520aac41836fbee479da67864514bdb821f31ce07ce65349"},
-    {file = "requests-2.28.1.tar.gz", hash = "sha256:7c5599b102feddaa661c826c56ab4fee28bfd17f5abca1ebbe3e7f19d7c97983"},
-]
-requests-mock = [
-    {file = "requests-mock-1.10.0.tar.gz", hash = "sha256:59c9c32419a9fb1ae83ec242d98e889c45bd7d7a65d48375cc243ec08441658b"},
-    {file = "requests_mock-1.10.0-py2.py3-none-any.whl", hash = "sha256:2fdbb637ad17ee15c06f33d31169e71bf9fe2bdb7bc9da26185be0dd8d842699"},
+rfc3986 = [
+    {file = "rfc3986-1.5.0-py2.py3-none-any.whl", hash = "sha256:a86d6e1f5b1dc238b218b012df0aa79409667bb209e58da56d0b94704e712a97"},
+    {file = "rfc3986-1.5.0.tar.gz", hash = "sha256:270aaf10d87d0d4e095063c65bf3ddbc6ee3d0b226328ce21e036f946e421835"},
 ]
 rlp = [
     {file = "rlp-2.0.1-py2.py3-none-any.whl", hash = "sha256:52a57c9f53f03c88b189283734b397314288250cc4a3c4113e9e36e2ac6bdd16"},
@@ -2311,6 +2403,10 @@ setuptools = [
 six = [
     {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
     {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
+]
+sniffio = [
+    {file = "sniffio-1.3.0-py3-none-any.whl", hash = "sha256:eecefdce1e5bbfb7ad2eeaabf7c1eeb404d7757c379bd1f7e5cce9d8bf425384"},
+    {file = "sniffio-1.3.0.tar.gz", hash = "sha256:e60305c5e5d314f5389259b7f22aaa33d8f7dee49763119234af3755c55b9101"},
 ]
 sqlalchemy = [
     {file = "SQLAlchemy-1.4.44-cp27-cp27m-macosx_10_14_x86_64.whl", hash = "sha256:da60b98b0f6f0df9fbf8b72d67d13b73aa8091923a48af79a951d4088530a239"},
@@ -2386,10 +2482,6 @@ types-flask-sqlalchemy = [
 types-redis = [
     {file = "types-redis-4.3.21.6.tar.gz", hash = "sha256:f7969f73a0f79e9e7895f053a06d8b429fb7b5d4fe1269b8ee40463388f653ad"},
     {file = "types_redis-4.3.21.6-py3-none-any.whl", hash = "sha256:615e5a9142993789ffc22ee54435769b600da3e528bb51cf38430e5cd82af306"},
-]
-types-requests = [
-    {file = "types-requests-2.28.11.5.tar.gz", hash = "sha256:a7df37cc6fb6187a84097da951f8e21d335448aa2501a6b0a39cbd1d7ca9ee2a"},
-    {file = "types_requests-2.28.11.5-py3-none-any.whl", hash = "sha256:091d4a5a33c1b4f20d8b1b952aa8fa27a6e767c44c3cf65e56580df0b05fd8a9"},
 ]
 types-s3transfer = [
     {file = "types_s3transfer-0.6.0.post5-py3-none-any.whl", hash = "sha256:cfcbee11c16d60af3feb3dbffea3a85b32129235b562912dece310a45ae83a2c"},
