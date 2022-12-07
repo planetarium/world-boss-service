@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import typing
 import os
@@ -152,14 +153,41 @@ class KmsWorldBossSigner:
         transactions = Transaction.query.filter_by(tx_result=None).order_by(
             Transaction.nonce
         )
-        for transaction in transactions:
-            for headless_url in headless_urls:
-                variables = {
-                    "payload": transaction.payload,
-                }
-                await self._query(headless_url, query, variables)
+        await asyncio.gather(
+            *[
+                self.stage_transaction(headless_url, transaction)
+                for headless_url in headless_urls
+                for transaction in transactions
+            ]
+        )
+
+    async def stage_transaction(self, headless_url: str, transaction: Transaction):
+        query = """
+        mutation($payload: String!) {
+          stageTransaction(payload: $payload)
+        }
+            """
+        variables = {
+            "payload": transaction.payload,
+        }
+        await self._query(headless_url, query, variables)
 
     async def check_transaction_status(self, network_type: NetworkType):
+        headless_url = MINER_URLS[network_type]
+        transactions = Transaction.query.filter_by(tx_result=None).order_by(
+            Transaction.nonce
+        )
+        await asyncio.gather(
+            *[
+                self.query_transaction_result(headless_url, transaction)
+                for transaction in transactions
+            ]
+        )
+        db.session.commit()
+
+    async def query_transaction_result(
+        self, headless_url: str, transaction: Transaction
+    ):
         query = """
             query($txId: TxId!) {
               transaction {
@@ -173,20 +201,14 @@ class KmsWorldBossSigner:
               }
             }
             """
-        headless_url = MINER_URLS[network_type]
-        transactions = Transaction.query.filter_by(tx_result=None).order_by(
-            Transaction.nonce
-        )
-        for transaction in transactions:
-            variables = {
-                "txId": transaction.tx_id,
-            }
-            result = await self._query(headless_url, query, variables)
-            tx_result = result["data"]["transaction"]["transactionResult"]
-            tx_status = tx_result["txStatus"]
-            transaction.tx_result = tx_status
-            db.session.add(transaction)
-        db.session.commit()
+        variables = {
+            "txId": transaction.tx_id,
+        }
+        result = await self._query(headless_url, query, variables)
+        tx_result = result["data"]["transaction"]["transactionResult"]
+        tx_status = tx_result["txStatus"]
+        transaction.tx_result = tx_status
+        db.session.add(transaction)
 
 
 signer = KmsWorldBossSigner(os.environ["KMS_KEY_ID"])
