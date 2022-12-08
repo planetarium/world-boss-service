@@ -127,16 +127,25 @@ async def get_agent_address(
     }
 
 
-async def check_total_amount(file_path: str, currencies: List[Tuple[str, int]]):
+async def check_total_amount(
+    file_path: str, currencies: List[Tuple[str, int]], result_file_path: str
+):
     currency_map: dict[str, int] = {}
+    nonce_map: dict[int, dict[str, int]] = {}
     with open(file_path, "r") as f:
         reader = csv.reader(f)
         # skip header
         next(reader, None)
-        # ranking,agent_address,avatar_address,amount,ticker,decimal_places
+        # ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in reader:
-            ticker = row[-2]
-            amount = int(row[-3])
+            ticker = row[4]
+            amount = int(row[3])
+            nonce = int(row[6])
+            if not nonce_map.get(nonce):
+                nonce_map[nonce] = {}
+            if not nonce_map[nonce].get(ticker):
+                nonce_map[nonce][ticker] = 0
+            nonce_map[nonce][ticker] += amount
             if not currency_map.get(ticker):
                 currency_map[ticker] = 0
             currency_map[ticker] += amount
@@ -155,3 +164,15 @@ async def check_total_amount(file_path: str, currencies: List[Tuple[str, int]]):
             raise ValueError(
                 f"{ticker} total amount is wrong. given: {amount}, actual: {currency_map[ticker]}"
             )
+    with open(result_file_path, "w") as f2:
+        writer = csv.writer(f2)
+        writer.writerow(["nonce", "ticker", "amount"])
+        for nonce in nonce_map:
+            for ticker in nonce_map[nonce]:
+                writer.writerow(
+                    [
+                        nonce,
+                        ticker,
+                        nonce_map[nonce][ticker],
+                    ]
+                )

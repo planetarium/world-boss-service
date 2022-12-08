@@ -5,8 +5,10 @@ from typing import Tuple, List
 from world_boss.app.raid import check_total_amount
 
 
-async def main(file_path: str, currencies: List[Tuple[str, int]]):
-    await check_total_amount(file_path, currencies)
+async def main(
+    file_path: str, currencies: List[Tuple[str, int]], result_file_path: str
+):
+    await check_total_amount(file_path, currencies, result_file_path)
 
 
 class ParseDict(argparse.Action):
@@ -29,6 +31,7 @@ class ParseDict(argparse.Action):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--file-path")
+    parser.add_argument("--result-file-path")
     parser.add_argument(
         "--currency",
         metavar="KEY=VALUE",
@@ -38,5 +41,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     loop = asyncio.get_event_loop()
     currencies = [(k, int(args.currency[k])) for k in args.currency]
-    loop.run_until_complete(main(args.file_path, currencies))
+    loop.run_until_complete(main(args.file_path, currencies, args.result_file_path))
     loop.close()
