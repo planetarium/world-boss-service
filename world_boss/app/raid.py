@@ -56,6 +56,7 @@ async def to_reward_file(
         writer = csv.writer(f)
         writer.writerow(
             [
+                "raid_id",
                 "ranking",
                 "agent_address",
                 "avatar_address",
@@ -76,6 +77,7 @@ async def to_reward_file(
                 amount = reward["quantity"]
                 writer.writerow(
                     [
+                        raid_id,
                         ranking,
                         agent_address_map[avatar_address],
                         avatar_address,
@@ -136,11 +138,11 @@ async def check_total_amount(
         reader = csv.reader(f)
         # skip header
         next(reader, None)
-        # ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
+        # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in reader:
-            ticker = row[4]
-            amount = int(row[3])
-            nonce = int(row[6])
+            ticker = row[5]
+            amount = int(row[4])
+            nonce = int(row[7])
             if not nonce_map.get(nonce):
                 nonce_map[nonce] = {}
             if not nonce_map[nonce].get(ticker):
