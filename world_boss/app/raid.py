@@ -41,14 +41,16 @@ def get_raid_rewards(raid_id: int, avatar_address: str):
     return jsonify(result)
 
 
-async def to_reward_file(raid_id: int, file_path: str, network_type: NetworkType):
+async def to_reward_file(
+    raid_id: int, file_path: str, network_type: NetworkType, start_nonce: int
+):
     result: List[
         RankingRewardDictionary
     ] = await data_provider_client.get_ranking_rewards(raid_id, network_type)
     async_client = httpx.AsyncClient()
     avatar_address_list = [r["raider"]["address"] for r in result]
     agent_address_map: dict[str, str] = await get_agent_address_map(
-        async_client, avatar_address_list, NetworkType.INTERNAL
+        async_client, avatar_address_list, network_type
     )
     with open(file_path, "w") as f:
         writer = csv.writer(f)
@@ -60,8 +62,10 @@ async def to_reward_file(raid_id: int, file_path: str, network_type: NetworkType
                 "amount",
                 "ticker",
                 "decimal_places",
+                "target_nonce",
             ]
         )
+        i = 0
         for r in result:
             raider: RaiderDictionary = r["raider"]
             ranking = raider["ranking"]
@@ -78,8 +82,10 @@ async def to_reward_file(raid_id: int, file_path: str, network_type: NetworkType
                         amount,
                         currency["ticker"],
                         currency["decimalPlaces"],
+                        start_nonce + int(i / 100),
                     ]
                 )
+                i += 1
 
 
 async def get_agent_address_map(
