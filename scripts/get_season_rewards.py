@@ -1,18 +1,18 @@
+import argparse
 import asyncio
 import sys
 
+from world_boss.app.enums import NetworkType
 from world_boss.app.raid import to_reward_file
 
 
-async def main(raid_id: int, file_path: str) -> int:
-    try:
-        await to_reward_file(raid_id, file_path)
-        return 0
-    except Exception:
-        return -1
-
-
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--season", type=int)
+    parser.add_argument("--path", type=str)
+    parser.add_argument("--network", type=str, choices=["MAIN", "INTERNAL"])
+    args = parser.parse_args()
+    network_type = NetworkType.MAIN if args.network == "MAIN" else NetworkType.INTERNAL
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(int(sys.argv[1]), sys.argv[2]))
+    loop.run_until_complete(to_reward_file(args.season, args.path, network_type))
     loop.close()

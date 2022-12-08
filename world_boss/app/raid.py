@@ -41,10 +41,10 @@ def get_raid_rewards(raid_id: int, avatar_address: str):
     return jsonify(result)
 
 
-async def to_reward_file(raid_id: int, file_path: str):
+async def to_reward_file(raid_id: int, file_path: str, network_type: NetworkType):
     result: List[
         RankingRewardDictionary
-    ] = await data_provider_client.get_ranking_rewards(raid_id, NetworkType.MAIN)
+    ] = await data_provider_client.get_ranking_rewards(raid_id, network_type)
     async_client = httpx.AsyncClient()
     avatar_address_list = [r["raider"]["address"] for r in result]
     agent_address_map: dict[str, str] = await get_agent_address_map(
