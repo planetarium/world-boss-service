@@ -41,12 +41,14 @@ def get_ranking_rewards(
         rewards = update_agent_address(
             result, raid_id, NetworkType.MAIN, i * 100, limit
         )
-        for r in rewards:
-            results.append(r)
+        results.extend(rewards)
     assert len(results) == total_count
-    temp_file = NamedTemporaryFile(suffix=".csv")
-    file_name = temp_file.name
-    write_ranking_rewards_csv(file_name, results, raid_id, start_nonce)
-    client.files_upload_v2(
-        channels=channel_id, title="test", filename="test.csv", file=file_name
-    )
+    with NamedTemporaryFile(suffix=".csv") as temp_file:
+        file_name = temp_file.name
+        write_ranking_rewards_csv(file_name, results, raid_id, start_nonce)
+        client.files_upload_v2(
+            channels=channel_id,
+            title="test",
+            filename=f"{raid_id}_{total_count}_{start_nonce}.csv",
+            file=file_name,
+        )

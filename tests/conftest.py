@@ -39,7 +39,6 @@ def database():
 @pytest.fixture(scope="session")
 def fx_app(database) -> Flask:
     fx_app = create_app()
-    # fx_app.config["CELERY_ALWAYS_EAGER"] = True
     ctx = fx_app.app_context()
     ctx.push()
     return fx_app

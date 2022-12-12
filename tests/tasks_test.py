@@ -67,9 +67,6 @@ def test_get_ranking_rewards(
         },
     ]
 
-    # cache + query result
-    expected_rewards: List[RankingRewardDictionary] = cached_rewards + requested_rewards
-
     cached_addresses: List[RankingRewardWithAgentDictionary] = [
         {
             "raider": {
@@ -81,19 +78,6 @@ def test_get_ranking_rewards(
         }
         for i in range(0, 100)
     ]
-    requested_addresses: List[RankingRewardWithAgentDictionary] = [
-        {
-            "raider": {
-                "address": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-                "ranking": 101,
-                "agent_address": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
-            },
-            "rewards": fx_ranking_rewards,
-        },
-    ]
-    expected_addresses: List[RankingRewardWithAgentDictionary] = (
-        cached_addresses + requested_addresses
-    )
     redisdb.set(rewards_cache_key, json.dumps(cached_rewards))
     httpx_mock.add_response(
         method="POST",
@@ -116,15 +100,14 @@ def test_get_ranking_rewards(
     )
 
     with unittest.mock.patch("world_boss.app.tasks.client.files_upload_v2") as m:
-        get_ranking_rewards("channel_id", raid_id, 101, 1)
-        # get_ranking_rewards.delay("channel_id", raid_id, 2, 1, limit).get(timeout=10)
+        get_ranking_rewards.delay("channel_id", raid_id, 101, 1).get(timeout=10)
         m.assert_called_once()
         # skip check file. because file is temp file.
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
         assert kwargs["channels"] == "channel_id"
         assert kwargs["title"] == "test"
-        assert kwargs["filename"] == "test.csv"
+        assert kwargs["filename"] == f"{raid_id}_101_1.csv"
     assert redisdb.exists(rewards_cache_key)
     assert redisdb.exists(addresses_cache_key)
     assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_100_100")

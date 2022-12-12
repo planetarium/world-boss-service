@@ -120,10 +120,10 @@ def write_ranking_rewards_csv(
             raider: RaiderWithAgentDictionary = r["raider"]
             ranking = raider["ranking"]
             avatar_address = raider["address"]
-            rewards_dict: List[RewardDictionary] = r["rewards"]
-            for reward in rewards_dict:
-                currency: CurrencyDictionary = reward["currency"]
-                amount = reward["quantity"]
+            reward_dict_list: List[RewardDictionary] = r["rewards"]
+            for reward_dict in reward_dict_list:
+                currency: CurrencyDictionary = reward_dict["currency"]
+                amount = reward_dict["quantity"]
                 writer.writerow(
                     [
                         raid_id,
