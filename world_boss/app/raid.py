@@ -1,3 +1,4 @@
+import csv
 import json
 from typing import cast, List
 
@@ -11,6 +12,9 @@ from world_boss.app.models import WorldBossReward
 from world_boss.app.stubs import (
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
+    RaiderWithAgentDictionary,
+    RewardDictionary,
+    CurrencyDictionary,
 )
 
 
@@ -89,3 +93,47 @@ def update_agent_address(
             rewards.append(r)
         set_to_cache(cache_key, json.dumps(rewards))
         return rewards
+
+
+def write_ranking_rewards_csv(
+    file_name: str,
+    reward_list: List[RankingRewardWithAgentDictionary],
+    raid_id: int,
+    start_nonce: int,
+):
+    with open(file_name, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "raid_id",
+                "ranking",
+                "agent_address",
+                "avatar_address",
+                "amount",
+                "ticker",
+                "decimal_places",
+                "target_nonce",
+            ]
+        )
+        i = 0
+        for r in reward_list:
+            raider: RaiderWithAgentDictionary = r["raider"]
+            ranking = raider["ranking"]
+            avatar_address = raider["address"]
+            rewards_dict: List[RewardDictionary] = r["rewards"]
+            for reward in rewards_dict:
+                currency: CurrencyDictionary = reward["currency"]
+                amount = reward["quantity"]
+                writer.writerow(
+                    [
+                        raid_id,
+                        ranking,
+                        raider["agent_address"],
+                        avatar_address,
+                        amount,
+                        currency["ticker"],
+                        currency["decimalPlaces"],
+                        start_nonce + int(i / 100),
+                    ]
+                )
+                i += 1

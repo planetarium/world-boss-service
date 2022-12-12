@@ -1,5 +1,6 @@
 import json
 import time
+import unittest
 from datetime import timedelta
 
 import pytest
@@ -34,3 +35,23 @@ def test_raid_rewards(
     if caching:
         time.sleep(2)
         assert not cache_exists(cache_key)
+
+
+def test_count_total_users(fx_test_client):
+    with unittest.mock.patch("world_boss.app.api.count_users.delay") as m:
+        req = fx_test_client.post(
+            f"/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
+        )
+        assert req.status_code == 200
+        assert req.json == 200
+        m.assert_called_once_with("channel_id", 1)
+
+
+def test_generate_ranking_rewards_csv(fx_test_client):
+    with unittest.mock.patch("world_boss.app.api.get_ranking_rewards.delay") as m:
+        req = fx_test_client.post(
+            f"/raid/rewards/list", data={"text": "1 2 3", "channel_id": "channel_id"}
+        )
+        assert req.status_code == 200
+        assert req.json == 200
+        m.assert_called_once_with("channel_id", 1, 2, 3)

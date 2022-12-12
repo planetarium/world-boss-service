@@ -10,6 +10,7 @@ from pytest_postgresql.janitor import DatabaseJanitor
 from pytest_redis import factories  # type: ignore
 
 from world_boss.app.models import WorldBossReward, WorldBossRewardAmount, Transaction
+from world_boss.app.stubs import RewardDictionary
 from world_boss.wsgi import create_app
 
 redis_proc = factories.redis_proc(port=6379)
@@ -38,6 +39,7 @@ def database():
 @pytest.fixture(scope="session")
 def fx_app(database) -> Flask:
     fx_app = create_app(DB_CONN)
+    # fx_app.config["CELERY_ALWAYS_EAGER"] = True
     ctx = fx_app.app_context()
     ctx.push()
     return fx_app
@@ -91,3 +93,51 @@ def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmoun
         i += 1
     fx_session.commit()
     return result
+
+
+@pytest.fixture(scope="session")
+def celery_config(fx_app: Flask):
+    conf = {
+        "broker_url": fx_app.config["CELERY_BROKER_URL"],
+        "result_backend": fx_app.config["CELERY_RESULT_BACKEND"],
+    }
+    conf.update(fx_app.config)
+    return conf
+
+
+@pytest.fixture()
+def fx_ranking_rewards() -> typing.List[RewardDictionary]:
+    return [
+        {
+            "currency": {
+                "decimalPlaces": 18,
+                "minters": None,
+                "ticker": "CRYSTAL",
+            },
+            "quantity": "1000000",
+        },
+        {
+            "currency": {
+                "decimalPlaces": 0,
+                "minters": None,
+                "ticker": "RUNESTONE_FENRIR1",
+            },
+            "quantity": "3500",
+        },
+        {
+            "currency": {
+                "decimalPlaces": 0,
+                "minters": None,
+                "ticker": "RUNESTONE_FENRIR2",
+            },
+            "quantity": "1200",
+        },
+        {
+            "currency": {
+                "decimalPlaces": 0,
+                "minters": None,
+                "ticker": "RUNESTONE_FENRIR3",
+            },
+            "quantity": "200",
+        },
+    ]
