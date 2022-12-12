@@ -10,9 +10,9 @@ __all__ = [
     "set_to_cache",
 ]
 
-rd = StrictRedis(
-    host=os.environ["REDIS_HOST"], port=int(os.environ["REDIS_PORT"]), db=0
-)
+from world_boss.app.config import config
+
+rd = StrictRedis(host=config.redis_host, port=config.redis_port, db=0)
 
 
 def cache_exists(key: str):

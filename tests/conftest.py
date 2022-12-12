@@ -9,14 +9,14 @@ from flask.testing import FlaskClient
 from pytest_postgresql.janitor import DatabaseJanitor
 from pytest_redis import factories  # type: ignore
 
+from world_boss.app.config import config
 from world_boss.app.models import WorldBossReward, WorldBossRewardAmount, Transaction
 from world_boss.app.stubs import RewardDictionary
 from world_boss.wsgi import create_app
 
 redis_proc = factories.redis_proc(port=6379)
 
-DB_CONN = f"postgresql://{os.environ['TEST_DB_USER']}:{os.environ['TEST_DB_PASS']}@{os.environ['TEST_DB_HOST']}:5432/{os.environ['TEST_DB_NAME']}"  # noqa
-DB_OPTS = sa.engine.url.make_url(DB_CONN).translate_connect_args()
+DB_OPTS = sa.engine.url.make_url(config.database_url).translate_connect_args()
 
 
 @pytest.fixture(scope="session")
@@ -38,7 +38,7 @@ def database():
 
 @pytest.fixture(scope="session")
 def fx_app(database) -> Flask:
-    fx_app = create_app(DB_CONN)
+    fx_app = create_app()
     # fx_app.config["CELERY_ALWAYS_EAGER"] = True
     ctx = fx_app.app_context()
     ctx.push()

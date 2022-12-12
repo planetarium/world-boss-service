@@ -15,6 +15,7 @@ from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
 from pyasn1.type.univ import Integer, SequenceOf  # type: ignore
 
+from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
@@ -211,4 +212,4 @@ class KmsWorldBossSigner:
         db.session.add(transaction)
 
 
-signer = KmsWorldBossSigner(os.environ["KMS_KEY_ID"])
+signer = KmsWorldBossSigner(config.kms_key_id)

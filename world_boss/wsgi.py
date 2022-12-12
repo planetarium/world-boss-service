@@ -4,24 +4,20 @@ from flask import Flask
 from sqlalchemy.exc import OperationalError
 
 from world_boss.app.api import api
+from world_boss.app.config import config
 from world_boss.app.orm import db, migrate
 from world_boss.app.tasks import celery
 
 
-def create_app(
-    db_uri: str = "postgresql://postgres@localhost:5432/world-boss",
-) -> Flask:
+def create_app() -> Flask:
     flask_app = Flask(__name__)
-    flask_app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL", db_uri)
+    flask_app.config["SQLALCHEMY_DATABASE_URI"] = config.database_url
     flask_app.register_blueprint(api)
 
     # Celery
-    default_redis_url = "redis://localhost:6379"
     flask_app.config.update(
-        CELERY_BROKER_URL=os.environ.get("CELERY_BROKER_URL", f"{default_redis_url}/0"),
-        CELERY_RESULT_BACKEND=os.environ.get(
-            "CELERY_RESULT_BACKEND", f"{default_redis_url}/1"
-        ),
+        CELERY_BROKER_URL=config.celery_broker_url,
+        CELERY_RESULT_BACKEND=config.celery_result_backend,
     )
 
     db.init_app(flask_app)

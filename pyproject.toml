@@ -26,6 +26,7 @@ httpx = "^0.23.1"
 slack-sdk = "^3.19.5"
 celery = "^5.2.7"
 celery-types = "^0.14.0"
+pydantic = {extras = ["dotenv"], version = "^1.10.2"}
 
 
 [tool.poetry.group.dev.dependencies]
@@ -55,3 +56,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 exclude = "migrations"
+plugins = "pydantic.mypy"
