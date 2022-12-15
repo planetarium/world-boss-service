@@ -32,23 +32,23 @@ def get_ranking_rewards(
     channel_id: str, raid_id: int, total_count: int, start_nonce: int
 ):
     offset = 0
-    limit = 100
+    size = 100
     results: List[RankingRewardWithAgentDictionary] = []
-    for i in range(offset, int(total_count / limit) + 1):
+    while len(results) < total_count:
         result = data_provider_client.get_ranking_rewards(
-            raid_id, NetworkType.MAIN, i * 100, limit
+            raid_id, NetworkType.MAIN, offset, size
         )
-        rewards = update_agent_address(
-            result, raid_id, NetworkType.MAIN, i * 100, limit
-        )
-        results.extend(rewards)
-    assert len(results) == total_count
+        rewards = update_agent_address(result, raid_id, NetworkType.MAIN, offset, size)
+        results.extend(reward for reward in rewards if reward not in results)
+        offset = len(results)
+        size = min(size, total_count - offset)
     with NamedTemporaryFile(suffix=".csv") as temp_file:
         file_name = temp_file.name
         write_ranking_rewards_csv(file_name, results, raid_id, start_nonce)
+        result_format = f"world_boss_{raid_id}_{total_count}_{start_nonce}_result"
         client.files_upload_v2(
             channels=channel_id,
-            title="test",
-            filename=f"{raid_id}_{total_count}_{start_nonce}.csv",
+            title=result_format,
+            filename=f"{result_format}.csv",
             file=file_name,
         )

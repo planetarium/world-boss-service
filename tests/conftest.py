@@ -137,6 +137,6 @@ def fx_ranking_rewards() -> typing.List[RewardDictionary]:
                 "minters": None,
                 "ticker": "RUNESTONE_FENRIR3",
             },
-            "quantity": "200",
+            "quantity": "300",
         },
     ]

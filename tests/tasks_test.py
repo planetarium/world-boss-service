@@ -106,9 +106,9 @@ def test_get_ranking_rewards(
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
         assert kwargs["channels"] == "channel_id"
-        assert kwargs["title"] == "test"
-        assert kwargs["filename"] == f"{raid_id}_101_1.csv"
+        assert kwargs["title"] == f"world_boss_{raid_id}_101_1_result"
+        assert kwargs["filename"] == f"world_boss_{raid_id}_101_1_result.csv"
     assert redisdb.exists(rewards_cache_key)
     assert redisdb.exists(addresses_cache_key)
-    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_100_100")
-    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_100")
+    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_100_1")
+    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_1")

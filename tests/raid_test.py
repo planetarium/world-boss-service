@@ -96,7 +96,7 @@ def test_write_ranking_rewards_csv(
         # check first and last row
         for key, ranking, amount, ticker, decimal_places, nonce in [
             (1, 1, 1000000, "CRYSTAL", 18, start_nonce),
-            (-1, bottom, 200, "RUNESTONE_FENRIR3", 0, last_nonce),
+            (-1, bottom, 300, "RUNESTONE_FENRIR3", 0, last_nonce),
         ]:
             assert (
                 rows[key]
