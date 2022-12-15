@@ -1,4 +1,4 @@
-from typing import Union, Optional, List, Dict
+from typing import Optional, List, Annotated
 
 from mypy_extensions import TypedDict
 
@@ -21,3 +21,13 @@ RankingRewardWithAgentDictionary = TypedDict(
     "RankingRewardWithAgentDictionary",
     {"raider": RaiderWithAgentDictionary, "rewards": List[RewardDictionary]},
 )
+RecipientRow = Annotated[List[str], 8]
+AmountDictionary = TypedDict(
+    "AmountDictionary",
+    {
+        "ticker": str,
+        "decimalPlaces": int,
+        "quantity": int,
+    },
+)
+Recipient = TypedDict("Recipient", {"recipient": str, "amount": AmountDictionary})

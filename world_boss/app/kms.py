@@ -19,7 +19,7 @@ from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
-
+from world_boss.app.stubs import Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
     NetworkType.MAIN: "http://9c-main-miner-3.nine-chronicles.com/graphql",
@@ -130,7 +130,7 @@ class KmsWorldBossSigner:
         self,
         time_stamp: datetime.datetime,
         nonce: int,
-        recipients: typing.List[typing.Dict],
+        recipients: typing.List[Recipient],
         memo: str,
         headless_url: str,
     ) -> Transaction:

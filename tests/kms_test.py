@@ -7,18 +7,23 @@ from pytest_httpx import HTTPXMock
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import signer, HEADLESS_URLS, MINER_URLS
 from world_boss.app.models import Transaction
+from world_boss.app.stubs import Recipient
 
 
 def test_address():
     assert signer.address == "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa"
 
 
-def test_transfer_assets(fx_session):
+def test_transfer_assets(fx_session) -> None:
     time_stamp = datetime.datetime(2022, 12, 31, tzinfo=datetime.timezone.utc)
     nonce = 2
-    recipient = {
+    recipient: Recipient = {
         "recipient": signer.address,
-        "amount": {"quantity": 10, "decimalPlaces": 18, "ticker": "CRYSTAL"},
+        "amount": {
+            "quantity": 10,
+            "decimalPlaces": 18,
+            "ticker": "CRYSTAL",
+        },
     }
     result = signer.transfer_assets(
         time_stamp,
