@@ -14,14 +14,14 @@ def test_address():
 
 
 @pytest.mark.asyncio
-async def test_transfer_assets(fx_session):
+async def test_transfer_assets_async(fx_session):
     time_stamp = datetime.datetime(2022, 12, 31, tzinfo=datetime.timezone.utc)
     nonce = 2
     recipient = {
         "recipient": signer.address,
         "amount": {"quantity": 10, "decimalPlaces": 18, "ticker": "CRYSTAL"},
     }
-    result = await signer.transfer_assets(
+    result = await signer.transfer_assets_async(
         time_stamp,
         nonce,
         [recipient],
