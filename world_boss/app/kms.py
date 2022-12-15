@@ -41,6 +41,7 @@ class KmsWorldBossSigner:
     def __init__(self, key_id: str):
         self._key_id = key_id
         self.async_client = httpx.AsyncClient()
+        self._client = httpx.Client()
 
     @property
     def public_key(self) -> bytes:
@@ -54,7 +55,7 @@ class KmsWorldBossSigner:
     def address(self) -> str:
         return ethereum_kms_signer.get_eth_address(self._key_id)
 
-    async def _sign_and_save_async(
+    def _sign_and_save(
         self, headless_url: str, unsigned_transaction: bytes, nonce: int
     ) -> Transaction:
         account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
@@ -68,12 +69,12 @@ class KmsWorldBossSigner:
         seq = SequenceOf(componentType=Integer())
         seq.extend([r, min(s, n - s)])
         signature = der_encode(seq)
-        signed_transaction = await self._sign_transaction_async(
+        signed_transaction = self._sign_transaction(
             headless_url, unsigned_transaction, signature
         )
         return self._save_transaction(signed_transaction, nonce)
 
-    async def _sign_transaction_async(
+    def _sign_transaction(
         self, headless_url: str, unsigned_transaction: bytes, signature: bytes
     ) -> bytes:
         query = """
@@ -89,7 +90,7 @@ class KmsWorldBossSigner:
             "signature": signature.hex(),
         }
 
-        result = await self._query_async(headless_url, query, variables)
+        result = self._query(headless_url, query, variables)
         return bytes.fromhex(result["data"]["transaction"]["signTransaction"])
 
     @backoff.on_exception(
@@ -99,6 +100,17 @@ class KmsWorldBossSigner:
     )
     async def _query_async(self, headless_url: str, query: str, variables: dict):
         result = await self.async_client.post(
+            headless_url, json={"query": query, "variables": variables}
+        )
+        return result.json()
+
+    @backoff.on_exception(
+        backoff.expo,
+        (httpx.ConnectTimeout, httpx.ConnectError),
+        max_tries=5,
+    )
+    def _query(self, headless_url: str, query: str, variables: dict):
+        result = self._client.post(
             headless_url, json={"query": query, "variables": variables}
         )
         return result.json()
@@ -114,7 +126,7 @@ class KmsWorldBossSigner:
         db.session.commit()
         return transaction
 
-    async def transfer_assets_async(
+    def transfer_assets(
         self,
         time_stamp: datetime.datetime,
         nonce: int,
@@ -138,13 +150,11 @@ class KmsWorldBossSigner:
             "memo": memo,
         }
 
-        result = await self._query_async(headless_url, query, variables)
+        result = self._query(headless_url, query, variables)
         unsigned_transaction = bytes.fromhex(
             result["data"]["actionTxQuery"]["transferAssets"]
         )
-        return await self._sign_and_save_async(
-            headless_url, unsigned_transaction, nonce
-        )
+        return self._sign_and_save(headless_url, unsigned_transaction, nonce)
 
     async def stage_transactions(self, network_type: NetworkType) -> None:
         query = """

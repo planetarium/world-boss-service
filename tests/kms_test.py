@@ -13,15 +13,14 @@ def test_address():
     assert signer.address == "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa"
 
 
-@pytest.mark.asyncio
-async def test_transfer_assets_async(fx_session):
+def test_transfer_assets(fx_session):
     time_stamp = datetime.datetime(2022, 12, 31, tzinfo=datetime.timezone.utc)
     nonce = 2
     recipient = {
         "recipient": signer.address,
         "amount": {"quantity": 10, "decimalPlaces": 18, "ticker": "CRYSTAL"},
     }
-    result = await signer.transfer_assets_async(
+    result = signer.transfer_assets(
         time_stamp,
         nonce,
         [recipient],
