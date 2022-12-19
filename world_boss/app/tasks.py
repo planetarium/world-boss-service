@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 from tempfile import NamedTemporaryFile
 from typing import List
 
@@ -6,6 +7,7 @@ from celery import Celery
 
 from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
+from world_boss.app.kms import signer, MINER_URLS
 from world_boss.app.raid import update_agent_address, write_ranking_rewards_csv
 from world_boss.app.slack import client
 from world_boss.app.stubs import (
@@ -13,6 +15,7 @@ from world_boss.app.stubs import (
     CurrencyDictionary,
     RankingRewardWithAgentDictionary,
     RaiderWithAgentDictionary,
+    Recipient,
 )
 
 celery = Celery()
@@ -52,3 +55,20 @@ def get_ranking_rewards(
             filename=f"{result_format}.csv",
             file=file_name,
         )
+
+
+@celery.task()
+def sign_transfer_assets(recipient_map: dict[int, List[Recipient]], time_string: str):
+    # app context for task.
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        time_stamp = datetime.fromisoformat(time_string)
+        for nonce in recipient_map:
+            signer.transfer_assets(
+                time_stamp,
+                int(nonce),
+                recipient_map[nonce],
+                "world boss ranking rewards by world boss signer",
+                MINER_URLS[NetworkType.MAIN],
+            )

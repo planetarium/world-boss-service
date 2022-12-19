@@ -1,3 +1,4 @@
+import datetime
 import json
 import unittest.mock
 from typing import List
@@ -7,12 +8,13 @@ from pytest_httpx import HTTPXMock
 from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
+from world_boss.app.models import Transaction
 from world_boss.app.stubs import (
     RankingRewardDictionary,
     RewardDictionary,
     RankingRewardWithAgentDictionary,
 )
-from world_boss.app.tasks import count_users, get_ranking_rewards
+from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
 
 
 def test_count_users(fx_app, redisdb, celery_app, celery_worker, httpx_mock: HTTPXMock):
@@ -112,3 +114,82 @@ def test_get_ranking_rewards(
     assert redisdb.exists(addresses_cache_key)
     assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_100_1")
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_1")
+
+
+def test_sign_transfer_assets(redisdb, celery_app, celery_worker, fx_app, fx_session):
+    assert not fx_session.query(Transaction).first()
+    recipient_map = {
+        55: [
+            {
+                "amount": {
+                    "decimalPlaces": 18,
+                    "quantity": 1000000,
+                    "ticker": "CRYSTAL",
+                },
+                "recipient": "0xC36f031aA721f52532BA665Ba9F020e45437D98D",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 3500,
+                    "ticker": "RUNESTONE_FENRIR1",
+                },
+                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 1200,
+                    "ticker": "RUNESTONE_FENRIR2",
+                },
+                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 300,
+                    "ticker": "RUNESTONE_FENRIR3",
+                },
+                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
+            },
+        ],
+        56: [
+            {
+                "amount": {
+                    "decimalPlaces": 18,
+                    "quantity": 1000000,
+                    "ticker": "CRYSTAL",
+                },
+                "recipient": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 3500,
+                    "ticker": "RUNESTONE_FENRIR1",
+                },
+                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 1200,
+                    "ticker": "RUNESTONE_FENRIR2",
+                },
+                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
+            },
+            {
+                "amount": {
+                    "decimalPlaces": 0,
+                    "quantity": 300,
+                    "ticker": "RUNESTONE_FENRIR3",
+                },
+                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
+            },
+        ],
+    }
+    sign_transfer_assets.delay(
+        recipient_map, datetime.datetime(2023, 1, 31).isoformat()
+    ).get(timeout=30)
+    # sign_transfer_assets(recipient_map, datetime.datetime(2023, 1, 31))
+    assert fx_session.query(Transaction).count() == 2
