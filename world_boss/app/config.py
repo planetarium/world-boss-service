@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     redis_port: int
     celery_broker_url: str = f"{default_redis_url}/0"
     celery_result_backend: str = f"{default_redis_url}/1"
+    slack_signing_secret: str
 
     class Config:
         env_file = ".env"
@@ -46,6 +47,7 @@ class Settings(BaseSettings):
             "celery_result_backend": {
                 "env": "CELERY_RESULT_BACKEND",
             },
+            "slack_signing_secret": {"env": "SLACK_SIGNING_SECRET"},
         }
 
 
