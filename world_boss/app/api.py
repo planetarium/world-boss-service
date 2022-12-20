@@ -4,8 +4,11 @@ from io import StringIO
 from typing import cast
 
 from flask import Blueprint, Response, jsonify, request
+from sqlalchemy import func
 
-from world_boss.app.raid import get_raid_rewards, row_to_recipient
+from world_boss.app.models import Transaction
+from world_boss.app.orm import db
+from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards, row_to_recipient
 from world_boss.app.slack import client
 from world_boss.app.stubs import Recipient
 from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
@@ -66,4 +69,15 @@ def prepare_transfer_assets() -> Response:
     for k in recipient_map:
         assert len(recipient_map[k]) <= 100
     sign_transfer_assets.delay(recipient_map, time_stamp)
+    return jsonify(200)
+
+
+@api.post("/nonce")
+def next_tx_nonce():
+    channel_id = request.values.get("channel_id")
+    nonce = get_next_tx_nonce()
+    client.chat_postMessage(
+        channel=channel_id,
+        text=f"next tx nonce: {nonce}",
+    )
     return jsonify(200)

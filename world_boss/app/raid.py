@@ -4,11 +4,13 @@ from typing import List, cast
 
 import httpx
 from flask import jsonify
+from sqlalchemy import func
 
 from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
-from world_boss.app.models import WorldBossReward
+from world_boss.app.models import Transaction, WorldBossReward
+from world_boss.app.orm import db
 from world_boss.app.stubs import (
     CurrencyDictionary,
     RaiderWithAgentDictionary,
@@ -156,3 +158,14 @@ def row_to_recipient(row: RecipientRow) -> Recipient:
             "ticker": ticker,
         },
     }
+
+
+def get_next_tx_nonce() -> int:
+    nonce = (
+        db.session.query(func.max(Transaction.nonce))
+        .filter_by(signer="0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD")
+        .scalar()
+    )
+    if nonce is None:
+        return 1
+    return nonce + 1
