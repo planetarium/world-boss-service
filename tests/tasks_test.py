@@ -11,8 +11,8 @@ from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import Transaction
 from world_boss.app.stubs import (
     RankingRewardDictionary,
-    RewardDictionary,
     RankingRewardWithAgentDictionary,
+    RewardDictionary,
 )
 from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
 

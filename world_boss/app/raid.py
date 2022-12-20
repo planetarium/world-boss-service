@@ -1,22 +1,22 @@
 import csv
 import json
-from typing import cast, List
+from typing import List, cast
 
 import httpx
 from flask import jsonify
 
-from world_boss.app.cache import set_to_cache, cache_exists, get_from_cache
+from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import WorldBossReward
 from world_boss.app.stubs import (
+    CurrencyDictionary,
+    RaiderWithAgentDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
-    RaiderWithAgentDictionary,
-    RewardDictionary,
-    CurrencyDictionary,
     Recipient,
     RecipientRow,
+    RewardDictionary,
 )
 
 

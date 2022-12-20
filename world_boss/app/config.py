@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+
 from pydantic import BaseSettings, Field
 
 if TYPE_CHECKING:

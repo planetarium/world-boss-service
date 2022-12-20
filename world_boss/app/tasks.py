@@ -7,15 +7,15 @@ from celery import Celery
 
 from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import signer, MINER_URLS
+from world_boss.app.kms import MINER_URLS, signer
 from world_boss.app.raid import update_agent_address, write_ranking_rewards_csv
 from world_boss.app.slack import client
 from world_boss.app.stubs import (
-    RewardDictionary,
     CurrencyDictionary,
-    RankingRewardWithAgentDictionary,
     RaiderWithAgentDictionary,
+    RankingRewardWithAgentDictionary,
     Recipient,
+    RewardDictionary,
 )
 
 celery = Celery()

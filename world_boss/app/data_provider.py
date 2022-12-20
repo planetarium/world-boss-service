@@ -2,17 +2,12 @@ import json
 from typing import List
 
 import httpx
-from world_boss.app.enums import NetworkType
-import json
-from typing import List
-
-import httpx
 
 from world_boss.app.enums import NetworkType
 
 __all__ = ["DATA_PROVIDER_URLS", "DataProviderClient", "data_provider_client"]
 
-from world_boss.app.cache import cache_exists, set_to_cache, get_from_cache
+from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.stubs import RankingRewardDictionary
 
 TOTAL_USER_QUERY = "query($raidId: Int!) { worldBossTotalUsers(raidId: $raidId) }"

@@ -3,7 +3,8 @@ import datetime
 from io import StringIO
 from typing import cast
 
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, Response, jsonify, request
+
 from world_boss.app.raid import get_raid_rewards, row_to_recipient
 from world_boss.app.slack import client
 from world_boss.app.stubs import Recipient

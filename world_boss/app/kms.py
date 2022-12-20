@@ -1,14 +1,13 @@
 import asyncio
+import base64
 import datetime
-import typing
+import hashlib
 import os
+import typing
 
 import backoff
 import boto3
-import base64
 import ethereum_kms_signer  # type: ignore
-import hashlib
-
 import httpx
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
 from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore

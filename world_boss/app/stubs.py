@@ -1,4 +1,4 @@
-from typing import Optional, List, Annotated
+from typing import Annotated, List, Optional
 
 from mypy_extensions import TypedDict
 
