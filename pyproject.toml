@@ -45,6 +45,7 @@ pytest-asyncio = "^0.20.2"
 pytest-timer = "^0.0.11"
 pytest-celery = "^0.0.0"
 isort = "^5.11.3"
+autoflake = "^2.0.0"
 
 [tool.pytest.ini_options]
 env_files = [".test.env", ".local.env"]

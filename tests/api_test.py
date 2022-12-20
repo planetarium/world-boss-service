@@ -1,4 +1,3 @@
-import datetime
 import json
 import time
 import unittest
@@ -6,10 +5,9 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from pytest_httpx import HTTPXMock
-from slack_sdk.web import SlackResponse
 
 from world_boss.app.cache import cache_exists, set_to_cache
+from world_boss.app.models import Transaction
 
 
 def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb):
@@ -126,3 +124,21 @@ def test_prepare_transfer_assets(fx_test_client, has_header: bool):
         assert req.json == 200
         m.assert_called_once_with(file="2")
         m2.assert_called_once_with(recipient_map, "2022-12-31")
+
+
+def test_next_tx_nonce(
+    fx_test_client,
+    fx_session,
+):
+    tx = Transaction()
+    tx.nonce = 1
+    tx.tx_id = "tx_id"
+    tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    tx.payload = "payload"
+    fx_session.add(tx)
+    fx_session.flush()
+    with unittest.mock.patch("world_boss.app.api.client.chat_postMessage") as m:
+        req = fx_test_client.post("/nonce", data={"channel_id": "channel_id"})
+        assert req.status_code == 200
+        assert req.json == 200
+        m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")

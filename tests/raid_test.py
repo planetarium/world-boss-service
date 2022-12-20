@@ -4,7 +4,12 @@ import pytest
 
 from world_boss.app.cache import cache_exists
 from world_boss.app.enums import NetworkType
-from world_boss.app.raid import update_agent_address, write_ranking_rewards_csv
+from world_boss.app.models import Transaction
+from world_boss.app.raid import (
+    get_next_tx_nonce,
+    update_agent_address,
+    write_ranking_rewards_csv,
+)
 from world_boss.app.stubs import (
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
@@ -102,3 +107,37 @@ def test_write_ranking_rewards_csv(
                 rows[key]
                 == f"{raid_id},{ranking},{agent_address},{avatar_address},{amount},{ticker},{decimal_places},{nonce}\n"
             )
+
+
+@pytest.mark.parametrize(
+    "nonce_list, expected",
+    [
+        ([1, 2], 3),
+        ([2, 3], 4),
+        ([1, 4], 5),
+        ([5], 6),
+    ],
+)
+def test_get_next_tx_nonce(fx_session, nonce_list: List[int], expected: int):
+    for nonce in nonce_list:
+        tx = Transaction()
+        tx.nonce = nonce
+        tx.tx_id = str(nonce)
+        tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        tx.payload = "payload"
+        fx_session.add(tx)
+    fx_session.flush()
+    assert get_next_tx_nonce() == expected
+
+
+@pytest.mark.parametrize("tx_exist", [True, False])
+def test_get_next_tx_nonce_tx_empty(fx_session, tx_exist: bool):
+    if tx_exist:
+        tx = Transaction()
+        tx.nonce = 1
+        tx.tx_id = "tx_id"
+        tx.signer = "signer"
+        tx.payload = "payload"
+        fx_session.add(tx)
+        fx_session.flush()
+    assert get_next_tx_nonce() == 1
