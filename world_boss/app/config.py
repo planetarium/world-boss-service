@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings
 
 if TYPE_CHECKING:
     PostgresDsn = str

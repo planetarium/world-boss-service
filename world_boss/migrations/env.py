@@ -20,7 +20,6 @@ logger = logging.getLogger("alembic.env")
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-from world_boss.app.models import *
 
 config.set_main_option(
     "sqlalchemy.url",

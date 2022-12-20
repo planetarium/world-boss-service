@@ -18,7 +18,12 @@ repos:
     rev: 5.11.3
     hooks:
       - id: isort
-        args: [worlds_boss, tests]
+        args: [world_boss, tests]
+-   repo: https://github.com/PyCQA/autoflake
+    rev: v2.0.0
+    hooks:
+    -   id: autoflake
+        args: ["--in-place", "--remove-all-unused-imports"]
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:

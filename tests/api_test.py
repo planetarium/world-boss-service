@@ -1,4 +1,3 @@
-import datetime
 import json
 import time
 import unittest
@@ -6,8 +5,6 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
-from pytest_httpx import HTTPXMock
-from slack_sdk.web import SlackResponse
 
 from world_boss.app.cache import cache_exists, set_to_cache
 from world_boss.app.models import Transaction

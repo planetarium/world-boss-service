@@ -1,12 +1,10 @@
 import json
-import unittest
 from typing import List
 
 import pytest
-from pytest_httpx import HTTPXMock
 
 from world_boss.app.cache import cache_exists, set_to_cache
-from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
+from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.stubs import RankingRewardDictionary
 

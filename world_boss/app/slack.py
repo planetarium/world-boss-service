@@ -1,5 +1,3 @@
-import os
-
 from slack_sdk import WebClient
 
 __all__ = ["client"]
