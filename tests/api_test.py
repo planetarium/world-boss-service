@@ -9,7 +9,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 from slack_sdk.web import SlackResponse
 
-from world_boss.app.cache import set_to_cache, cache_exists
+from world_boss.app.cache import cache_exists, set_to_cache
 
 
 def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb):

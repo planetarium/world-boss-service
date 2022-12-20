@@ -14,6 +14,11 @@ repos:
     hooks:
     -   id: black
         args: [world_boss, tests]
+-   repo: https://github.com/pycqa/isort
+    rev: 5.11.3
+    hooks:
+      - id: isort
+        args: [worlds_boss, tests]
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:

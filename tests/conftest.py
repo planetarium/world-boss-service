@@ -10,7 +10,7 @@ from pytest_postgresql.janitor import DatabaseJanitor
 from pytest_redis import factories  # type: ignore
 
 from world_boss.app.config import config
-from world_boss.app.models import WorldBossReward, WorldBossRewardAmount, Transaction
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.stubs import RewardDictionary
 from world_boss.wsgi import create_app
 

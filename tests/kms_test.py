@@ -5,7 +5,7 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import signer, HEADLESS_URLS, MINER_URLS
+from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction
 from world_boss.app.stubs import Recipient
 
