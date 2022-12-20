@@ -40,9 +40,13 @@ def test_raid_rewards(
 
 
 def test_count_total_users(fx_test_client):
-    with unittest.mock.patch("world_boss.app.api.count_users.delay") as m:
+    with unittest.mock.patch(
+        "world_boss.app.api.count_users.delay"
+    ) as m, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
         req = fx_test_client.post(
-            f"/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
+            "/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
         )
         assert req.status_code == 200
         assert req.json == 200
@@ -50,9 +54,13 @@ def test_count_total_users(fx_test_client):
 
 
 def test_generate_ranking_rewards_csv(fx_test_client):
-    with unittest.mock.patch("world_boss.app.api.get_ranking_rewards.delay") as m:
+    with unittest.mock.patch(
+        "world_boss.app.api.get_ranking_rewards.delay"
+    ) as m, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
         req = fx_test_client.post(
-            f"/raid/rewards/list", data={"text": "1 2 3", "channel_id": "channel_id"}
+            "/raid/rewards/list", data={"text": "1 2 3", "channel_id": "channel_id"}
         )
         assert req.status_code == 200
         assert req.json == 200
@@ -112,7 +120,11 @@ def test_prepare_transfer_assets(fx_test_client, has_header: bool):
     }
     with unittest.mock.patch(
         "world_boss.app.api.client.files_info", return_value=mocked_response
-    ) as m, unittest.mock.patch("world_boss.app.api.sign_transfer_assets.delay") as m2:
+    ) as m, unittest.mock.patch(
+        "world_boss.app.api.sign_transfer_assets.delay"
+    ) as m2, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
         req = fx_test_client.post(
             f"/raid/prepare",
             data={
@@ -137,8 +149,20 @@ def test_next_tx_nonce(
     tx.payload = "payload"
     fx_session.add(tx)
     fx_session.flush()
-    with unittest.mock.patch("world_boss.app.api.client.chat_postMessage") as m:
+    with unittest.mock.patch(
+        "world_boss.app.api.client.chat_postMessage"
+    ) as m, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
         req = fx_test_client.post("/nonce", data={"channel_id": "channel_id"})
         assert req.status_code == 200
         assert req.json == 200
         m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")
+
+
+@pytest.mark.parametrize(
+    "url", ["/raid/list/count", "/raid/rewards/list", "/raid/prepare", "/nonce"]
+)
+def test_slack_auth(fx_test_client, url: str):
+    req = fx_test_client.post(url)
+    assert req.status_code == 403

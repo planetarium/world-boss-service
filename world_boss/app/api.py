@@ -5,7 +5,7 @@ from typing import cast
 from flask import Blueprint, Response, jsonify, request
 
 from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards, row_to_recipient
-from world_boss.app.slack import client
+from world_boss.app.slack import client, slack_auth
 from world_boss.app.stubs import Recipient
 from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
 
@@ -23,6 +23,7 @@ def raid_rewards(raid_id: int, avatar_address: str):
 
 
 @api.post("/raid/list/count")
+@slack_auth
 def count_total_users():
     raid_id = request.values.get("text", type=int)
     channel_id = request.values.get("channel_id")
@@ -31,6 +32,7 @@ def count_total_users():
 
 
 @api.post("/raid/rewards/list")
+@slack_auth
 def generate_ranking_rewards_csv():
     values = request.values.get("text").split()
     raid_id, total_users, nonce = [int(v) for v in values]
@@ -40,6 +42,7 @@ def generate_ranking_rewards_csv():
 
 
 @api.post("/raid/prepare")
+@slack_auth
 def prepare_transfer_assets() -> Response:
     link, time_stamp = request.values.get("text", "").split()
     file_id = link.split("/")[5]
@@ -69,6 +72,7 @@ def prepare_transfer_assets() -> Response:
 
 
 @api.post("/nonce")
+@slack_auth
 def next_tx_nonce():
     channel_id = request.values.get("channel_id")
     nonce = get_next_tx_nonce()
