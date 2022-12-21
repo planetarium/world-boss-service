@@ -1810,7 +1810,7 @@ types-awscrt = "*"
 
 [[package]]
 name = "types-sqlalchemy"
-version = "1.4.53.18"
+version = "1.4.53.19"
 description = "Typing stubs for SQLAlchemy"
 category = "main"
 optional = false
@@ -2857,8 +2857,8 @@ types-s3transfer = [
     {file = "types_s3transfer-0.6.0.post5.tar.gz", hash = "sha256:2cf1e07cf4d1a5a2a68d89c654f45d9c3b678d39f7fe03a6f36903b6dbd3bcbc"},
 ]
 types-sqlalchemy = [
-    {file = "types-SQLAlchemy-1.4.53.18.tar.gz", hash = "sha256:710909d6f7caef3ce066e12b6c963ce960a50be1ad13982cb76cdba6cc1a6bad"},
-    {file = "types_SQLAlchemy-1.4.53.18-py3-none-any.whl", hash = "sha256:994ede8653d6b030d1176b40a00b423380ac23c0aa2f83724d87a4223912e34d"},
+    {file = "types-SQLAlchemy-1.4.53.19.tar.gz", hash = "sha256:8f0cc6bff76e63433daa744da5adff66a49bca2ccc05073d5f211c96ef49ed3f"},
+    {file = "types_SQLAlchemy-1.4.53.19-py3-none-any.whl", hash = "sha256:42e7a2332a260f29cb65278d92201c59a9743e01657a3380d8e3e076f6c027d5"},
 ]
 types-urllib3 = [
     {file = "types-urllib3-1.26.25.4.tar.gz", hash = "sha256:eec5556428eec862b1ac578fb69aab3877995a99ffec9e5a12cf7fbd0cc9daee"},

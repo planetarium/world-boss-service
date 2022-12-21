@@ -3,17 +3,24 @@ import json
 import unittest.mock
 from typing import List
 
+import pytest
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
-from world_boss.app.models import Transaction
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.stubs import (
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
 )
-from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
+from world_boss.app.tasks import (
+    count_users,
+    get_ranking_rewards,
+    insert_world_boss_rewards,
+    prepare_world_boss_ranking_rewards,
+    sign_transfer_assets,
+)
 
 
 def test_count_users(fx_app, redisdb, celery_app, celery_worker, httpx_mock: HTTPXMock):
@@ -115,80 +122,140 @@ def test_get_ranking_rewards(
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_1")
 
 
-def test_sign_transfer_assets(redisdb, celery_app, celery_worker, fx_app, fx_session):
-    assert not fx_session.query(Transaction).first()
-    recipient_map = {
-        55: [
-            {
-                "amount": {
-                    "decimalPlaces": 18,
-                    "quantity": 1000000,
-                    "ticker": "CRYSTAL",
-                },
-                "recipient": "0xC36f031aA721f52532BA665Ba9F020e45437D98D",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 3500,
-                    "ticker": "RUNESTONE_FENRIR1",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 1200,
-                    "ticker": "RUNESTONE_FENRIR2",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 300,
-                    "ticker": "RUNESTONE_FENRIR3",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-        ],
-        56: [
-            {
-                "amount": {
-                    "decimalPlaces": 18,
-                    "quantity": 1000000,
-                    "ticker": "CRYSTAL",
-                },
-                "recipient": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 3500,
-                    "ticker": "RUNESTONE_FENRIR1",
-                },
-                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 1200,
-                    "ticker": "RUNESTONE_FENRIR2",
-                },
-                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 300,
-                    "ticker": "RUNESTONE_FENRIR3",
-                },
-                "recipient": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-            },
-        ],
-    }
+@pytest.mark.parametrize(
+    "nonce, max_nonce, expected_count", [(1, 1, 0), (1, 2, 0), (2, 1, 1)]
+)
+def test_sign_transfer_assets(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+    fx_session,
+    nonce: int,
+    max_nonce: int,
+    expected_count: int,
+):
+    assert fx_session.query(Transaction).count() == 0
     sign_transfer_assets.delay(
-        recipient_map, datetime.datetime(2023, 1, 31).isoformat()
+        "2022-12-31", nonce, [], "memo", MINER_URLS[NetworkType.INTERNAL], max_nonce
+    ).get(timeout=10)
+    assert fx_session.query(Transaction).count() == expected_count
+
+
+def test_insert_world_boss_rewards(
+    redisdb, celery_app, celery_worker, fx_app, fx_session
+):
+    content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175"""
+    tx = Transaction()
+    tx.nonce = 175
+    tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    tx.tx_id = "tx_id"
+    tx.payload = "payload"
+    fx_session.add(tx)
+    fx_session.commit()
+    insert_world_boss_rewards.delay([r.split(",") for r in content.split("\n")]).get(
+        timeout=10
+    )
+
+    assert len(fx_session.query(Transaction).first().amounts) == 4
+
+    world_boss_reward = fx_session.query(WorldBossReward).first()
+    assert world_boss_reward.raid_id == 3
+    assert world_boss_reward.ranking == 25
+    assert (
+        world_boss_reward.agent_address == "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+    )
+    assert (
+        world_boss_reward.avatar_address == "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+    )
+
+    assert len(world_boss_reward.amounts) == 4
+
+    for ticker, amount, decimal_places in [
+        ("CRYSTAL", 150000, 18),
+        ("RUNESTONE_FENRIR1", 560, 0),
+        ("RUNESTONE_FENRIR2", 150, 0),
+        ("RUNESTONE_FENRIR3", 40, 0),
+    ]:
+        world_boss_reward_amount = (
+            fx_session.query(WorldBossRewardAmount).filter_by(ticker=ticker).one()
+        )
+        assert world_boss_reward_amount.decimal_places == decimal_places
+        assert world_boss_reward_amount.amount == amount
+
+
+def test_prepare_world_boss_ranking_rewards(
+    redisdb, celery_app, celery_worker, fx_app, fx_session
+):
+    assert not fx_session.query(Transaction).first()
+    assert not fx_session.query(WorldBossReward).first()
+    assert not fx_session.query(WorldBossRewardAmount).first()
+    content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
+3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
+3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
+3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
+3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,150000,CRYSTAL,18,176
+3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,560,RUNESTONE_FENRIR1,0,176
+3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,150,RUNESTONE_FENRIR2,0,176
+3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,40,RUNESTONE_FENRIR3,0,176"""
+    prepare_world_boss_ranking_rewards.delay(
+        [r.split(",") for r in content.split("\n")],
+        datetime.datetime(2023, 1, 31).isoformat(),
     ).get(timeout=30)
-    # sign_transfer_assets(recipient_map, datetime.datetime(2023, 1, 31))
-    assert fx_session.query(Transaction).count() == 2
+    expected = [
+        {
+            "nonce": 175,
+            "ranking": 25,
+            "agent_address": "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4",
+            "avatar_address": "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d",
+        },
+        {
+            "nonce": 176,
+            "ranking": 26,
+            "agent_address": "0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c",
+            "avatar_address": "1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE",
+        },
+    ]
+    reward_amounts = [
+        {
+            "ticker": "CRYSTAL",
+            "decimal_places": 18,
+            "amount": 150000,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR1",
+            "decimal_places": 0,
+            "amount": 560,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR2",
+            "decimal_places": 0,
+            "amount": 150,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR3",
+            "decimal_places": 0,
+            "amount": 40,
+        },
+    ]
+    for i, tx in enumerate(fx_session.query(Transaction).order_by(Transaction.nonce)):
+        assert tx.nonce == expected[i]["nonce"]
+        assert tx.tx_result is None
+        assert len(tx.amounts) == 4
+
+        world_boss_reward = tx.amounts[0].reward
+        assert world_boss_reward.raid_id == 3
+        assert world_boss_reward.ranking == expected[i]["ranking"]
+        assert world_boss_reward.agent_address == expected[i]["agent_address"]
+        assert world_boss_reward.avatar_address == expected[i]["avatar_address"]
+
+        for v, world_boss_reward_amount in enumerate(tx.amounts):
+            assert world_boss_reward_amount.ticker == reward_amounts[v]["ticker"]
+            assert (
+                world_boss_reward_amount.decimal_places
+                == reward_amounts[v]["decimal_places"]
+            )
+            assert world_boss_reward_amount.amount == reward_amounts[v]["amount"]
