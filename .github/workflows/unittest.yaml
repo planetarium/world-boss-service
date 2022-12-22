@@ -7,14 +7,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install poetry
+        run: pipx install poetry
       - name: Set up Python
         uses: actions/setup-python@v4
+        id: cp310
         with:
           python-version: "3.10"
-      - name: Run image
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: "1.2.2"
+          cache: 'poetry'
+      - run: echo '${{ steps.cp310.outputs.python-version }}'
+      - run: poetry install
       - name: pre-commit
         uses: pre-commit/action@v3.0.0
       - name: Install dependencies
