@@ -4,10 +4,13 @@ from typing import cast
 
 from flask import Blueprint, Response, jsonify, request
 
-from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards, row_to_recipient
+from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards
 from world_boss.app.slack import client, slack_auth
-from world_boss.app.stubs import Recipient
-from world_boss.app.tasks import count_users, get_ranking_rewards, sign_transfer_assets
+from world_boss.app.tasks import (
+    count_users,
+    get_ranking_rewards,
+    prepare_world_boss_ranking_rewards,
+)
 
 api = Blueprint("api", __name__)
 
@@ -54,20 +57,7 @@ def prepare_transfer_assets() -> Response:
     reader = csv.reader(stream)
     if has_header:
         next(reader, None)
-    recipient_map: dict[int, list[Recipient]] = {}
-    start_ranking: int
-    last_ranking: int
-    # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
-    for row in reader:
-        nonce = int(row[7])
-        recipient = row_to_recipient(row)
-        # first row by each nonce
-        if not recipient_map.get(nonce):
-            recipient_map[nonce] = []
-        recipient_map[nonce].append(recipient)
-    for k in recipient_map:
-        assert len(recipient_map[k]) <= 100
-    sign_transfer_assets.delay(recipient_map, time_stamp)
+    prepare_world_boss_ranking_rewards.delay([row for row in reader], time_stamp)
     return jsonify(200)
 
 

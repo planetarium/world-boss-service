@@ -69,18 +69,18 @@ def test_generate_ranking_rewards_csv(fx_test_client):
 
 @pytest.mark.parametrize("has_header", [True, False])
 def test_prepare_transfer_assets(fx_test_client, has_header: bool):
+    header = "raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce\n"
     content = (
-        "raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce\n2,1,"
-        "0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,1000000,CRYSTAL,"
+        "2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,1000000,CRYSTAL,"
         "18,55\n2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,3500,"
         "RUNESTONE_FENRIR1,0,55\n2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,"
         "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,1200,RUNESTONE_FENRIR2,0,55\n2,1,"
         "0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,300,"
-        "RUNESTONE_FENRIR3,0,55 "
+        "RUNESTONE_FENRIR3,0,55"
     )
     mocked_response = MagicMock()
     mocked_response.data = {
-        "content": content,
+        "content": header + content if has_header else content,
     }
     recipient_map = {
         55: [
@@ -121,7 +121,7 @@ def test_prepare_transfer_assets(fx_test_client, has_header: bool):
     with unittest.mock.patch(
         "world_boss.app.api.client.files_info", return_value=mocked_response
     ) as m, unittest.mock.patch(
-        "world_boss.app.api.sign_transfer_assets.delay"
+        "world_boss.app.api.prepare_world_boss_ranking_rewards.delay"
     ) as m2, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
@@ -135,7 +135,9 @@ def test_prepare_transfer_assets(fx_test_client, has_header: bool):
         assert req.status_code == 200
         assert req.json == 200
         m.assert_called_once_with(file="2")
-        m2.assert_called_once_with(recipient_map, "2022-12-31")
+        m2.assert_called_once_with(
+            [r.split(",") for r in content.split("\n")], "2022-12-31"
+        )
 
 
 def test_next_tx_nonce(
