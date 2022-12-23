@@ -171,7 +171,7 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         result = self._query(headless_url, query, variables)
         return result["data"]["actionQuery"]["prepareRewardAssets"]
 
-    async def stage_transactions(self, network_type: NetworkType) -> None:
+    async def stage_transactions_async(self, network_type: NetworkType) -> None:
         query = """
         mutation($payload: String!) {
           stageTransaction(payload: $payload)
@@ -183,13 +183,15 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         )
         await asyncio.gather(
             *[
-                self.stage_transaction(headless_url, transaction)
+                self.stage_transaction_async(headless_url, transaction)
                 for headless_url in headless_urls
                 for transaction in transactions
             ]
         )
 
-    async def stage_transaction(self, headless_url: str, transaction: Transaction):
+    async def stage_transaction_async(
+        self, headless_url: str, transaction: Transaction
+    ):
         query = """
         mutation($payload: String!) {
           stageTransaction(payload: $payload)
@@ -200,20 +202,20 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         }
         await self._query_async(headless_url, query, variables)
 
-    async def check_transaction_status(self, network_type: NetworkType):
+    async def check_transaction_status_async(self, network_type: NetworkType):
         headless_url = MINER_URLS[network_type]
         transactions = Transaction.query.filter_by(tx_result=None).order_by(
             Transaction.nonce
         )
         await asyncio.gather(
             *[
-                self.query_transaction_result(headless_url, transaction)
+                self.query_transaction_result_async(headless_url, transaction)
                 for transaction in transactions
             ]
         )
         db.session.commit()
 
-    async def query_transaction_result(
+    async def query_transaction_result_async(
         self, headless_url: str, transaction: Transaction
     ):
         query = """

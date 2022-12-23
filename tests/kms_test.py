@@ -54,7 +54,7 @@ def test_transfer_assets(fx_session) -> None:
         NetworkType.MAIN,
     ],
 )
-async def test_stage_transactions(
+async def test_stage_transactions_async(
     fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
 ):
     for nonce in [1, 2, 3]:
@@ -76,7 +76,7 @@ async def test_stage_transactions(
                 }
             },
         )
-    await signer.stage_transactions(network_type)
+    await signer.stage_transactions_async(network_type)
     assert len(httpx_mock.get_requests()) == len(urls) * 3
 
 
@@ -88,7 +88,7 @@ async def test_stage_transactions(
         NetworkType.MAIN,
     ],
 )
-async def test_check_transaction_status(
+async def test_check_transaction_status_async(
     fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
 ):
     for nonce in [1, 2, 3]:
@@ -104,7 +104,7 @@ async def test_check_transaction_status(
         url=MINER_URLS[network_type],
         json={"data": {"transaction": {"transactionResult": {"txStatus": "SUCCESS"}}}},
     )
-    await signer.check_transaction_status(network_type)
+    await signer.check_transaction_status_async(network_type)
     assert len(httpx_mock.get_requests()) == 3
     transactions = fx_session.query(Transaction)
     for transaction in transactions:
