@@ -2,6 +2,7 @@ from datetime import datetime
 from tempfile import NamedTemporaryFile
 from typing import List
 
+import bencodex
 from celery import Celery, chord
 
 from world_boss.app.data_provider import data_provider_client
@@ -10,6 +11,7 @@ from world_boss.app.kms import MINER_URLS, signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.orm import db
 from world_boss.app.raid import (
+    get_assets,
     get_next_tx_nonce,
     row_to_recipient,
     update_agent_address,
@@ -157,3 +159,17 @@ def insert_world_boss_rewards(rows: List[RecipientRow]):
                     nonce=nonce
                 ).one()
             db.session.commit()
+
+
+@celery.task()
+def upload_prepare_reward_assets(channel_id: str, raid_id: int):
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        assets = get_assets(raid_id)
+        result = signer.prepare_reward_assets(MINER_URLS[NetworkType.MAIN], assets)
+        decoded = bencodex.loads(bytes.fromhex(result))
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{decoded}\n\n{result}```",
+        )

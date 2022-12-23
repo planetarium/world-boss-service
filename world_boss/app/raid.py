@@ -9,9 +9,10 @@ from sqlalchemy import func
 from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
-from world_boss.app.models import Transaction, WorldBossReward
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.orm import db
 from world_boss.app.stubs import (
+    AmountDictionary,
     CurrencyDictionary,
     RaiderWithAgentDictionary,
     RankingRewardDictionary,
@@ -169,3 +170,25 @@ def get_next_tx_nonce() -> int:
     if nonce is None:
         return 1
     return nonce + 1
+
+
+def get_assets(raid_id: int) -> List[AmountDictionary]:
+    query = (
+        db.session.query(
+            func.sum(WorldBossRewardAmount.amount),
+            WorldBossRewardAmount.ticker,
+            WorldBossRewardAmount.decimal_places,
+        )
+        .join(WorldBossReward, WorldBossRewardAmount.reward)
+        .filter(WorldBossReward.raid_id == raid_id)
+        .group_by(WorldBossRewardAmount.ticker, WorldBossRewardAmount.decimal_places)
+    )
+    assets: List[AmountDictionary] = []
+    for amount, ticker, decimal_places in query:
+        asset: AmountDictionary = {
+            "ticker": ticker,
+            "quantity": int(amount),
+            "decimalPlaces": decimal_places,
+        }
+        assets.append(asset)
+    return assets

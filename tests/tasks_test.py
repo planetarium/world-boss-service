@@ -3,6 +3,7 @@ import json
 import unittest.mock
 from typing import List
 
+import bencodex
 import pytest
 from pytest_httpx import HTTPXMock
 
@@ -11,6 +12,7 @@ from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.stubs import (
+    AmountDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
 )
@@ -20,6 +22,7 @@ from world_boss.app.tasks import (
     insert_world_boss_rewards,
     prepare_world_boss_ranking_rewards,
     sign_transfer_assets,
+    upload_prepare_reward_assets,
 )
 
 
@@ -259,3 +262,58 @@ def test_prepare_world_boss_ranking_rewards(
                 == reward_amounts[v]["decimal_places"]
             )
             assert world_boss_reward_amount.amount == reward_amounts[v]["amount"]
+
+
+@pytest.mark.parametrize("raid_id", [1, 2])
+def test_upload_prepare_reward_assets(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+    fx_session,
+    httpx_mock: HTTPXMock,
+    raid_id: int,
+):
+    result = []
+    assets: List[AmountDictionary] = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+    ]
+    reward = WorldBossReward()
+    reward.avatar_address = "avatar_address"
+    reward.agent_address = "agent_address"
+    reward.raid_id = raid_id
+    reward.ranking = 1
+
+    for i, asset in enumerate(assets):
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = asset["quantity"]
+        reward_amount.ticker = asset["ticker"]
+        reward_amount.decimal_places = asset["decimalPlaces"]
+        reward_amount.reward = reward
+        tx_id = i
+        reward_amount.tx_id = tx_id
+        transaction = Transaction()
+        transaction.tx_id = tx_id
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
+        fx_session.add(transaction)
+        result.append(reward_amount)
+    fx_session.commit()
+    raw = "6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6c647531333a646563696d616c506c61636573313a1275373a6d696e746572736e75363a7469636b657275373a4352595354414c656931303933383030303030303030303030303030303030303030303065656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495231656934303635343565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495232656931313137313565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e524952336569323338393065656575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565"
+    httpx_mock.add_response(
+        method="POST",
+        url=MINER_URLS[NetworkType.MAIN],
+        json={"data": {"actionQuery": {"prepareRewardAssets": raw}}},
+    )
+    with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
+        upload_prepare_reward_assets.delay("channel_id", raid_id).get()
+        req = httpx_mock.get_request()
+        assert req is not None
+        m.assert_called_once_with(
+            channel="channel_id",
+            text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{bencodex.loads(bytes.fromhex(raw))}\n\n{raw}```",
+        )

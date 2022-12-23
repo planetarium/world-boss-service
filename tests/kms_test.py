@@ -1,4 +1,5 @@
 import datetime
+from typing import List
 
 import bencodex
 import pytest
@@ -7,7 +8,7 @@ from pytest_httpx import HTTPXMock
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction
-from world_boss.app.stubs import Recipient
+from world_boss.app.stubs import AmountDictionary, Recipient
 
 
 def test_address():
@@ -108,3 +109,25 @@ async def test_check_transaction_status(
     transactions = fx_session.query(Transaction)
     for transaction in transactions:
         assert transaction.tx_result == "SUCCESS"
+
+
+@pytest.mark.parametrize(
+    "network_type",
+    [
+        NetworkType.INTERNAL,
+        NetworkType.MAIN,
+    ],
+)
+def test_prepare_reward_assets(fx_app, network_type: NetworkType):
+    headless_url = MINER_URLS[network_type]
+    assets: List[AmountDictionary] = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+    ]
+    result = signer.prepare_reward_assets(headless_url, assets)
+    assert (
+        result
+        == "6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6c647531333a646563696d616c506c61636573313a1275373a6d696e746572736e75363a7469636b657275373a4352595354414c656931303933383030303030303030303030303030303030303030303065656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495231656934303635343565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495232656931313137313565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e524952336569323338393065656575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565"
+    )

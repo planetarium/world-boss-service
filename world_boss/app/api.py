@@ -10,6 +10,7 @@ from world_boss.app.tasks import (
     count_users,
     get_ranking_rewards,
     prepare_world_boss_ranking_rewards,
+    upload_prepare_reward_assets,
 )
 
 api = Blueprint("api", __name__)
@@ -70,4 +71,13 @@ def next_tx_nonce():
         channel=channel_id,
         text=f"next tx nonce: {nonce}",
     )
+    return jsonify(200)
+
+
+@api.post("/prepare-reward-assets")
+@slack_auth
+def prepare_reward_assets():
+    channel_id = request.values.get("channel_id")
+    raid_id = request.values.get("text", type=int)
+    upload_prepare_reward_assets.delay(channel_id, raid_id)
     return jsonify(200)

@@ -4,13 +4,15 @@ import pytest
 
 from world_boss.app.cache import cache_exists
 from world_boss.app.enums import NetworkType
-from world_boss.app.models import Transaction
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
+    get_assets,
     get_next_tx_nonce,
     update_agent_address,
     write_ranking_rewards_csv,
 )
 from world_boss.app.stubs import (
+    AmountDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
 )
@@ -141,3 +143,35 @@ def test_get_next_tx_nonce_tx_empty(fx_session, tx_exist: bool):
         fx_session.add(tx)
         fx_session.flush()
     assert get_next_tx_nonce() == 1
+
+
+def test_get_assets(fx_session) -> None:
+    assets: List[AmountDictionary] = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+    ]
+    for i in range(1, 5):
+        asset = assets[i - 1]
+        transaction = Transaction()
+        transaction.tx_id = str(i)
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
+        reward = WorldBossReward()
+        reward.avatar_address = "avatar_address"
+        reward.agent_address = "agent_address"
+        reward.raid_id = i
+        reward.ranking = i
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = asset["quantity"]
+        reward_amount.ticker = asset["ticker"]
+        reward_amount.decimal_places = asset["decimalPlaces"]
+        reward_amount.reward = reward
+        reward_amount.transaction = transaction
+        fx_session.add(transaction)
+    fx_session.commit()
+    for i, asset in enumerate(assets):
+        raid_id = i + 1
+        assert get_assets(raid_id) == [assets[i]]
