@@ -17,7 +17,7 @@ from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
-from world_boss.app.stubs import Recipient
+from world_boss.app.stubs import AmountDictionary, Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
     NetworkType.MAIN: "http://9c-main-miner-3.nine-chronicles.com/graphql",
@@ -153,6 +153,23 @@ class KmsWorldBossSigner:
             result["data"]["actionTxQuery"]["transferAssets"]
         )
         return self._sign_and_save(headless_url, unsigned_transaction, nonce)
+
+    def prepare_reward_assets(
+        self, headless_url: str, assets: typing.List[AmountDictionary]
+    ) -> str:
+        query = """
+query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
+  actionQuery {
+    prepareRewardAssets(rewardPoolAddress: $rewardPoolAddress, assets: $assets)
+  }
+}
+        """
+        variables = {
+            "rewardPoolAddress": self.address,
+            "assets": assets,
+        }
+        result = self._query(headless_url, query, variables)
+        return result["data"]["actionQuery"]["prepareRewardAssets"]
 
     async def stage_transactions(self, network_type: NetworkType) -> None:
         query = """

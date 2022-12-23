@@ -162,8 +162,29 @@ def test_next_tx_nonce(
         m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")
 
 
+def test_prepare_reward_assets(fx_test_client):
+    with unittest.mock.patch(
+        "world_boss.app.api.upload_prepare_reward_assets.delay"
+    ) as m, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
+        req = fx_test_client.post(
+            "/prepare-reward-assets", data={"channel_id": "channel_id", "text": "3"}
+        )
+        assert req.status_code == 200
+        assert req.json == 200
+        m.assert_called_once_with("channel_id", 3)
+
+
 @pytest.mark.parametrize(
-    "url", ["/raid/list/count", "/raid/rewards/list", "/raid/prepare", "/nonce"]
+    "url",
+    [
+        "/raid/list/count",
+        "/raid/rewards/list",
+        "/raid/prepare",
+        "/nonce",
+        "/prepare-reward-assets",
+    ],
 )
 def test_slack_auth(fx_test_client, url: str):
     req = fx_test_client.post(url)
