@@ -139,3 +139,27 @@ def fx_ranking_rewards() -> typing.List[RewardDictionary]:
             "quantity": "300",
         },
     ]
+
+
+@pytest.fixture()
+def fx_transactions() -> typing.List[Transaction]:
+    transactions = []
+    for nonce, tx_id, payload in [
+        (
+            1,
+            "a9c9444bd50b3164b5c251315960272ae1f42f7b2d5b95948a78c608424bbcb2",
+            "payload_1",
+        ),
+        (
+            2,
+            "db4b916c5c821cbf90356694f231c9f6a6858b67231799dc9ee2d9f2946c4310",
+            "pyaload_2",
+        ),
+    ]:
+        transaction = Transaction()
+        transaction.tx_id = tx_id
+        transaction.nonce = nonce
+        transaction.payload = payload
+        transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        transactions.append(transaction)
+    return transactions

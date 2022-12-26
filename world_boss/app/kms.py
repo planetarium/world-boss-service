@@ -183,6 +183,32 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         result = self._query(headless_url, query, variables)
         return result["data"]["stageTransaction"]
 
+    def query_transaction_result(self, headless_url: str, tx_id: str) -> str:
+        query = """
+            query($txId: TxId!) {
+              transaction {
+                transactionResult(txId: $txId) {
+                  blockHash
+                  blockIndex
+                  txStatus
+                  exceptionName
+                  exceptionMetadata
+                }
+              }
+            }
+            """
+        variables = {
+            "txId": tx_id,
+        }
+        result = self._query(headless_url, query, variables)
+        tx_result = result["data"]["transaction"]["transactionResult"]
+        tx_status = tx_result["txStatus"]
+        transaction = db.session.query(Transaction).filter_by(tx_id=tx_id).one()
+        transaction.tx_result = tx_status
+        db.session.add(transaction)
+        db.session.commit()
+        return tx_status
+
     async def stage_transactions_async(self, network_type: NetworkType) -> None:
         query = """
         mutation($payload: String!) {

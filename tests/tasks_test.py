@@ -21,10 +21,12 @@ from world_boss.app.tasks import (
     get_ranking_rewards,
     insert_world_boss_rewards,
     prepare_world_boss_ranking_rewards,
+    query_tx_result,
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
     upload_prepare_reward_assets,
+    upload_tx_result,
 )
 
 
@@ -363,3 +365,35 @@ def test_stage_transaction(
     req = httpx_mock.get_request()
     assert req is not None
     assert result == "tx_id"
+
+
+def test_query_tx_result(celery_worker, fx_app, fx_session, fx_transactions):
+    assert fx_session.query(Transaction).count() == 0
+    tx_ids = []
+    for transaction in fx_transactions:
+        fx_session.add(transaction)
+        tx_ids.append(transaction.tx_id)
+    fx_session.commit()
+
+    for tx_id in tx_ids:
+        _, result = query_tx_result.delay(MINER_URLS[NetworkType.MAIN], tx_id).get(
+            timeout=10
+        )
+        tx = fx_session.query(Transaction).filter_by(tx_id=tx_id).one()
+        assert result == "SUCCESS"
+        assert tx.tx_result == "SUCCESS"
+
+
+def test_upload_result(
+    celery_worker,
+    fx_app,
+):
+    with unittest.mock.patch("world_boss.app.tasks.client.files_upload_v2") as m:
+        upload_tx_result.delay([("tx_id", "SUCCESS")], "channel_id").get(timeout=30)
+        m.assert_called_once()
+        # skip check file. because file is temp file.
+        kwargs = m.call_args.kwargs
+        assert kwargs["file"]
+        assert kwargs["channels"] == "channel_id"
+        assert kwargs["title"] == "world_boss_tx_result"
+        assert "world_boss_tx_result" in kwargs["filename"]

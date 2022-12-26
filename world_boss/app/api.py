@@ -4,12 +4,16 @@ from typing import cast
 
 from flask import Blueprint, Response, jsonify, request
 
+from world_boss.app.models import Transaction
+from world_boss.app.orm import db
 from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards
 from world_boss.app.slack import client, slack_auth
 from world_boss.app.tasks import (
+    check_tx_result,
     count_users,
     get_ranking_rewards,
     prepare_world_boss_ranking_rewards,
+    stage_transactions,
     upload_prepare_reward_assets,
 )
 
@@ -80,4 +84,23 @@ def prepare_reward_assets():
     channel_id = request.values.get("channel_id")
     raid_id = request.values.get("text", type=int)
     upload_prepare_reward_assets.delay(channel_id, raid_id)
+    return jsonify(200)
+
+
+@api.post("/stage-transaction")
+@slack_auth
+def stage_transaction():
+    channel_id = request.values.get("channel_id")
+    network = request.values.get("text")
+    stage_transactions.delay(channel_id, network)
+    return jsonify(200)
+
+
+@api.post("/transaction-result")
+@slack_auth
+def transaction_result():
+    channel_id = request.values.get("channel_id")
+    network = request.values.get("text")
+    tx_ids = db.session.query(Transaction.tx_id).all()
+    check_tx_result.delay(channel_id, [tx_id for tx_id, in tx_ids], network)
     return jsonify(200)

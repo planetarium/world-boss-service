@@ -1,6 +1,6 @@
 from datetime import datetime
 from tempfile import NamedTemporaryFile
-from typing import List
+from typing import List, Tuple
 
 import bencodex
 from celery import Celery, chord
@@ -16,6 +16,7 @@ from world_boss.app.raid import (
     row_to_recipient,
     update_agent_address,
     write_ranking_rewards_csv,
+    write_tx_result_csv,
 )
 from world_boss.app.slack import client
 from world_boss.app.stubs import (
@@ -223,3 +224,43 @@ def send_slack_message(channel_id: str, msg: str):
             channel=channel_id,
             text=msg,
         )
+
+
+# FIXME chord can't wait result in unittest
+@celery.task()
+def check_tx_result(channel_id: str, tx_ids: List[str], network: str):
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        network_type = NetworkType.INTERNAL
+        if network.lower() == "main":
+            network_type = NetworkType.MAIN
+        url = MINER_URLS[network_type]
+        chord(query_tx_result.s(url, tx_id) for tx_id in tx_ids)(
+            upload_tx_result.s(channel_id)
+        )
+
+
+@celery.task()
+def query_tx_result(headless_url: str, tx_id: str):
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        tx_result = signer.query_transaction_result(headless_url, tx_id)
+    return tx_id, tx_result
+
+
+@celery.task()
+def upload_tx_result(tx_results: List[Tuple[str, str]], channel_id: str):
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        with NamedTemporaryFile(suffix=".csv") as temp_file:
+            file_name = temp_file.name
+            write_tx_result_csv(file_name, tx_results)
+            client.files_upload_v2(
+                channels=channel_id,
+                title="world_boss_tx_result",
+                filename=f"world_boss_tx_result_{datetime.utcnow()}.csv",
+                file=file_name,
+            )

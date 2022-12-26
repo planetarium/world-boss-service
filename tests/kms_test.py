@@ -162,3 +162,30 @@ def test_stage_transaction(
             },
         )
         assert signer.stage_transaction(url, tx) == 1
+
+
+@pytest.mark.parametrize(
+    "network_type",
+    [
+        NetworkType.INTERNAL,
+        NetworkType.MAIN,
+    ],
+)
+def test_query_transaction_result(
+    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
+):
+    tx = Transaction()
+    tx.tx_id = str(1)
+    tx.nonce = 1
+    tx.signer = "signer"
+    tx.payload = "payload"
+    fx_session.add(tx)
+    fx_session.flush()
+    httpx_mock.add_response(
+        method="POST",
+        url=MINER_URLS[network_type],
+        json={"data": {"transaction": {"transactionResult": {"txStatus": "SUCCESS"}}}},
+    )
+    signer.query_transaction_result(MINER_URLS[network_type], "1")
+    transaction = fx_session.query(Transaction).one()
+    assert transaction.tx_result == "SUCCESS"

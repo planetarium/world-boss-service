@@ -10,6 +10,7 @@ from world_boss.app.raid import (
     get_next_tx_nonce,
     update_agent_address,
     write_ranking_rewards_csv,
+    write_tx_result_csv,
 )
 from world_boss.app.stubs import (
     AmountDictionary,
@@ -175,3 +176,20 @@ def test_get_assets(fx_session) -> None:
     for i, asset in enumerate(assets):
         raid_id = i + 1
         assert get_assets(raid_id) == [assets[i]]
+
+
+def test_write_tx_result_csv(tmp_path):
+    file_name = tmp_path / "test.csv"
+    results = [
+        ("1", "SUCCESS"),
+        ("2", "FAILURE"),
+    ]
+    write_tx_result_csv(file_name, results)
+    with open(file_name, "r") as f:
+        rows = f.readlines()
+        # check header
+        assert rows[0] == "tx_id,result\n"
+
+        # check first and last row
+        for key, (tx_id, result) in enumerate(results):
+            assert rows[key + 1] == f"{tx_id},{result}\n"
