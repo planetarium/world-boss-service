@@ -98,7 +98,7 @@ python-versions = ">=3.7,<4.0"
 name = "bencodex"
 version = "1.0.1"
 description = "Bencodex reader/writer for Python"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.5"
 
@@ -1903,7 +1903,7 @@ watchdog = ["watchdog"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "1b7840588172e7b68fe7ab340f28f9a25ad0a321ba9260f2be7cd28cc3014d0d"
+content-hash = "62f8023e2a5fec89a2c007416ef241986513bfb45f61da2b1a50cd00e0cb0313"
 
 [metadata.files]
 alembic = [
