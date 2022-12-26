@@ -94,7 +94,7 @@ def fx_world_boss_reward_amounts(fx_session) -> typing.List[WorldBossRewardAmoun
 
 
 @pytest.fixture(scope="session")
-def celery_config(fx_app: Flask):
+def celery_config(fx_app: Flask, redis_proc):
     conf = {
         "broker_url": fx_app.config["CELERY_BROKER_URL"],
         "result_backend": fx_app.config["CELERY_RESULT_BACKEND"],

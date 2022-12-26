@@ -171,6 +171,18 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         result = self._query(headless_url, query, variables)
         return result["data"]["actionQuery"]["prepareRewardAssets"]
 
+    def stage_transaction(self, headless_url: str, transaction: Transaction) -> str:
+        query = """
+        mutation($payload: String!) {
+          stageTransaction(payload: $payload)
+        }
+            """
+        variables = {
+            "payload": transaction.payload,
+        }
+        result = self._query(headless_url, query, variables)
+        return result["data"]["stageTransaction"]
+
     async def stage_transactions_async(self, network_type: NetworkType) -> None:
         query = """
         mutation($payload: String!) {

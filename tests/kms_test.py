@@ -131,3 +131,34 @@ def test_prepare_reward_assets(fx_app, network_type: NetworkType):
         result
         == "6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6c647531333a646563696d616c506c61636573313a1275373a6d696e746572736e75363a7469636b657275373a4352595354414c656931303933383030303030303030303030303030303030303030303065656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495231656934303635343565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e52495232656931313137313565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531373a52554e4553544f4e455f46454e524952336569323338393065656575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565"
     )
+
+
+@pytest.mark.parametrize(
+    "network_type",
+    [
+        NetworkType.INTERNAL,
+        NetworkType.MAIN,
+    ],
+)
+def test_stage_transaction(
+    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
+):
+    tx = Transaction()
+    tx.tx_id = str(1)
+    tx.nonce = 1
+    tx.signer = "signer"
+    tx.payload = "payload"
+    fx_session.add(tx)
+    fx_session.flush()
+    urls = HEADLESS_URLS[network_type]
+    for url in urls:
+        httpx_mock.add_response(
+            url=url,
+            method="POST",
+            json={
+                "data": {
+                    "stageTransaction": 1,
+                }
+            },
+        )
+        assert signer.stage_transaction(url, tx) == 1

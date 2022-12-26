@@ -21,7 +21,9 @@ from world_boss.app.tasks import (
     get_ranking_rewards,
     insert_world_boss_rewards,
     prepare_world_boss_ranking_rewards,
+    send_slack_message,
     sign_transfer_assets,
+    stage_transaction,
     upload_prepare_reward_assets,
 )
 
@@ -317,3 +319,47 @@ def test_upload_prepare_reward_assets(
             channel="channel_id",
             text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{bencodex.loads(bytes.fromhex(raw))}\n\n{raw}```",
         )
+
+
+def test_send_slack_message(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+):
+    with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
+        send_slack_message.delay("channel_id", "test message").get()
+        m.assert_called_once_with(channel="channel_id", text="test message")
+
+
+@pytest.mark.parametrize("network_type", [NetworkType.MAIN, NetworkType.INTERNAL])
+def test_stage_transaction(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+    fx_session,
+    httpx_mock: HTTPXMock,
+    network_type: NetworkType,
+):
+    transaction = Transaction()
+    transaction.tx_id = "tx_id"
+    transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    transaction.payload = "payload"
+    transaction.nonce = 1
+    fx_session.add(transaction)
+    fx_session.commit()
+    url = MINER_URLS[network_type]
+    httpx_mock.add_response(
+        url=url,
+        method="POST",
+        json={
+            "data": {
+                "stageTransaction": "tx_id",
+            }
+        },
+    )
+    result = stage_transaction.delay(url, 1).get(timeout=3)
+    req = httpx_mock.get_request()
+    assert req is not None
+    assert result == "tx_id"

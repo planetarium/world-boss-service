@@ -176,6 +176,21 @@ def test_prepare_reward_assets(fx_test_client):
         m.assert_called_once_with("channel_id", 3)
 
 
+@pytest.mark.parametrize("text", ["main", "internal"])
+def test_stage_transaction(fx_test_client, text: str):
+    with unittest.mock.patch(
+        "world_boss.app.api.stage_transactions.delay"
+    ) as m, unittest.mock.patch(
+        "world_boss.app.slack.verifier.is_valid_request", return_value=True
+    ):
+        req = fx_test_client.post(
+            "/stage-transaction", data={"channel_id": "channel_id", "text": text}
+        )
+        assert req.status_code == 200
+        assert req.json == 200
+        m.assert_called_once_with("channel_id", text)
+
+
 @pytest.mark.parametrize(
     "url",
     [
@@ -184,6 +199,7 @@ def test_prepare_reward_assets(fx_test_client):
         "/raid/prepare",
         "/nonce",
         "/prepare-reward-assets",
+        "/stage-transaction",
     ],
 )
 def test_slack_auth(fx_test_client, url: str):
