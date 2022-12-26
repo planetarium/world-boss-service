@@ -1,6 +1,6 @@
 import csv
 import json
-from typing import List, cast
+from typing import List, Tuple, cast
 
 import httpx
 from flask import jsonify
@@ -192,3 +192,16 @@ def get_assets(raid_id: int) -> List[AmountDictionary]:
         }
         assets.append(asset)
     return assets
+
+
+def write_tx_result_csv(file_name: str, tx_results: List[Tuple[str, str]]):
+    with open(file_name, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "tx_id",
+                "result",
+            ]
+        )
+        for tx_result in tx_results:
+            writer.writerow([tx_result[0], tx_result[1]])

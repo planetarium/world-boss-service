@@ -21,8 +21,12 @@ from world_boss.app.tasks import (
     get_ranking_rewards,
     insert_world_boss_rewards,
     prepare_world_boss_ranking_rewards,
+    query_tx_result,
+    send_slack_message,
     sign_transfer_assets,
+    stage_transaction,
     upload_prepare_reward_assets,
+    upload_tx_result,
 )
 
 
@@ -317,3 +321,79 @@ def test_upload_prepare_reward_assets(
             channel="channel_id",
             text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{bencodex.loads(bytes.fromhex(raw))}\n\n{raw}```",
         )
+
+
+def test_send_slack_message(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+):
+    with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
+        send_slack_message.delay("channel_id", "test message").get()
+        m.assert_called_once_with(channel="channel_id", text="test message")
+
+
+@pytest.mark.parametrize("network_type", [NetworkType.MAIN, NetworkType.INTERNAL])
+def test_stage_transaction(
+    redisdb,
+    celery_app,
+    celery_worker,
+    fx_app,
+    fx_session,
+    httpx_mock: HTTPXMock,
+    network_type: NetworkType,
+):
+    transaction = Transaction()
+    transaction.tx_id = "tx_id"
+    transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    transaction.payload = "payload"
+    transaction.nonce = 1
+    fx_session.add(transaction)
+    fx_session.commit()
+    url = MINER_URLS[network_type]
+    httpx_mock.add_response(
+        url=url,
+        method="POST",
+        json={
+            "data": {
+                "stageTransaction": "tx_id",
+            }
+        },
+    )
+    result = stage_transaction.delay(url, 1).get(timeout=3)
+    req = httpx_mock.get_request()
+    assert req is not None
+    assert result == "tx_id"
+
+
+def test_query_tx_result(celery_worker, fx_app, fx_session, fx_transactions):
+    assert fx_session.query(Transaction).count() == 0
+    tx_ids = []
+    for transaction in fx_transactions:
+        fx_session.add(transaction)
+        tx_ids.append(transaction.tx_id)
+    fx_session.commit()
+
+    for tx_id in tx_ids:
+        _, result = query_tx_result.delay(MINER_URLS[NetworkType.MAIN], tx_id).get(
+            timeout=10
+        )
+        tx = fx_session.query(Transaction).filter_by(tx_id=tx_id).one()
+        assert result == "SUCCESS"
+        assert tx.tx_result == "SUCCESS"
+
+
+def test_upload_result(
+    celery_worker,
+    fx_app,
+):
+    with unittest.mock.patch("world_boss.app.tasks.client.files_upload_v2") as m:
+        upload_tx_result.delay([("tx_id", "SUCCESS")], "channel_id").get(timeout=30)
+        m.assert_called_once()
+        # skip check file. because file is temp file.
+        kwargs = m.call_args.kwargs
+        assert kwargs["file"]
+        assert kwargs["channels"] == "channel_id"
+        assert kwargs["title"] == "world_boss_tx_result"
+        assert "world_boss_tx_result" in kwargs["filename"]

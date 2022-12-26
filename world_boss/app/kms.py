@@ -171,7 +171,45 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         result = self._query(headless_url, query, variables)
         return result["data"]["actionQuery"]["prepareRewardAssets"]
 
-    async def stage_transactions(self, network_type: NetworkType) -> None:
+    def stage_transaction(self, headless_url: str, transaction: Transaction) -> str:
+        query = """
+        mutation($payload: String!) {
+          stageTransaction(payload: $payload)
+        }
+            """
+        variables = {
+            "payload": transaction.payload,
+        }
+        result = self._query(headless_url, query, variables)
+        return result["data"]["stageTransaction"]
+
+    def query_transaction_result(self, headless_url: str, tx_id: str) -> str:
+        query = """
+            query($txId: TxId!) {
+              transaction {
+                transactionResult(txId: $txId) {
+                  blockHash
+                  blockIndex
+                  txStatus
+                  exceptionName
+                  exceptionMetadata
+                }
+              }
+            }
+            """
+        variables = {
+            "txId": tx_id,
+        }
+        result = self._query(headless_url, query, variables)
+        tx_result = result["data"]["transaction"]["transactionResult"]
+        tx_status = tx_result["txStatus"]
+        transaction = db.session.query(Transaction).filter_by(tx_id=tx_id).one()
+        transaction.tx_result = tx_status
+        db.session.add(transaction)
+        db.session.commit()
+        return tx_status
+
+    async def stage_transactions_async(self, network_type: NetworkType) -> None:
         query = """
         mutation($payload: String!) {
           stageTransaction(payload: $payload)
@@ -183,13 +221,15 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         )
         await asyncio.gather(
             *[
-                self.stage_transaction(headless_url, transaction)
+                self.stage_transaction_async(headless_url, transaction)
                 for headless_url in headless_urls
                 for transaction in transactions
             ]
         )
 
-    async def stage_transaction(self, headless_url: str, transaction: Transaction):
+    async def stage_transaction_async(
+        self, headless_url: str, transaction: Transaction
+    ):
         query = """
         mutation($payload: String!) {
           stageTransaction(payload: $payload)
@@ -200,20 +240,20 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
         }
         await self._query_async(headless_url, query, variables)
 
-    async def check_transaction_status(self, network_type: NetworkType):
+    async def check_transaction_status_async(self, network_type: NetworkType):
         headless_url = MINER_URLS[network_type]
         transactions = Transaction.query.filter_by(tx_result=None).order_by(
             Transaction.nonce
         )
         await asyncio.gather(
             *[
-                self.query_transaction_result(headless_url, transaction)
+                self.query_transaction_result_async(headless_url, transaction)
                 for transaction in transactions
             ]
         )
         db.session.commit()
 
-    async def query_transaction_result(
+    async def query_transaction_result_async(
         self, headless_url: str, transaction: Transaction
     ):
         query = """
