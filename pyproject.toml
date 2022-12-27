@@ -49,8 +49,10 @@ autoflake = "^2.0.0"
 
 [tool.pytest.ini_options]
 env_files = [".test.env", ".local.env"]
-plugins = ["pytest-flask-sqlalchemy"]
 addopts = "--basetemp=/tmp/pytest --redis-exec=/opt/homebrew/bin/redis-server"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
 
 [build-system]
 requires = ["poetry-core"]

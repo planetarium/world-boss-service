@@ -10,6 +10,7 @@ from world_boss.app.tasks import celery
 def create_app() -> Flask:
     flask_app = Flask(__name__)
     flask_app.config["SQLALCHEMY_DATABASE_URI"] = config.database_url
+    flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     flask_app.register_blueprint(api)
 
     # Celery
