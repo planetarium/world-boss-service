@@ -2,19 +2,26 @@ import csv
 from io import StringIO
 from typing import cast
 
+from celery import chord
 from flask import Blueprint, Response, jsonify, request
 
+from world_boss.app.enums import NetworkType
+from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
-from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards
+from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards, row_to_recipient
 from world_boss.app.slack import client, slack_auth
+from world_boss.app.stubs import Recipient
 from world_boss.app.tasks import (
-    check_tx_result,
     count_users,
     get_ranking_rewards,
-    prepare_world_boss_ranking_rewards,
-    stage_transactions,
+    insert_world_boss_rewards,
+    query_tx_result,
+    send_slack_message,
+    sign_transfer_assets,
+    stage_transaction,
     upload_prepare_reward_assets,
+    upload_tx_result,
 )
 
 api = Blueprint("api", __name__)
@@ -35,8 +42,8 @@ def raid_rewards(raid_id: int, avatar_address: str):
 def count_total_users():
     raid_id = request.values.get("text", type=int)
     channel_id = request.values.get("channel_id")
-    count_users.delay(channel_id, raid_id)
-    return jsonify(200)
+    task = count_users.delay(channel_id, raid_id)
+    return jsonify({"task_id": task.id})
 
 
 @api.post("/raid/rewards/list")
@@ -45,8 +52,8 @@ def generate_ranking_rewards_csv():
     values = request.values.get("text").split()
     raid_id, total_users, nonce = [int(v) for v in values]
     channel_id = request.values.get("channel_id")
-    get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce)
-    return jsonify(200)
+    task = get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce)
+    return jsonify({"task_id": task.id})
 
 
 @api.post("/raid/prepare")
@@ -62,8 +69,33 @@ def prepare_transfer_assets() -> Response:
     reader = csv.reader(stream)
     if has_header:
         next(reader, None)
-    prepare_world_boss_ranking_rewards.delay([row for row in reader], time_stamp)
-    return jsonify(200)
+    # nonce : recipients for transfer_assets tx
+    recipient_map: dict[int, list[Recipient]] = {}
+    max_nonce = get_next_tx_nonce() - 1
+    rows = [row for row in reader]
+    # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
+    for row in rows:
+        nonce = int(row[7])
+        recipient = row_to_recipient(row)
+
+        # update recipient_map
+        if not recipient_map.get(nonce):
+            recipient_map[nonce] = []
+        recipient_map[nonce].append(recipient)
+
+    # sanity check
+    for k in recipient_map:
+        assert len(recipient_map[k]) <= 100
+    # insert tables
+    memo = "world boss ranking rewards by world boss signer"
+    url = MINER_URLS[NetworkType.MAIN]
+    task = chord(
+        sign_transfer_assets.s(
+            time_stamp, int(nonce), recipient_map[nonce], memo, url, max_nonce
+        )
+        for nonce in recipient_map
+    )(insert_world_boss_rewards.si(rows))
+    return jsonify({"task_id": task.id})
 
 
 @api.post("/nonce")
@@ -83,17 +115,30 @@ def next_tx_nonce():
 def prepare_reward_assets():
     channel_id = request.values.get("channel_id")
     raid_id = request.values.get("text", type=int)
-    upload_prepare_reward_assets.delay(channel_id, raid_id)
-    return jsonify(200)
+    task = upload_prepare_reward_assets.delay(channel_id, raid_id)
+    return jsonify({"task_id": task.id})
 
 
 @api.post("/stage-transaction")
 @slack_auth
-def stage_transaction():
+def stage_transactions():
     channel_id = request.values.get("channel_id")
     network = request.values.get("text")
-    stage_transactions.delay(channel_id, network)
-    return jsonify(200)
+    nonce_list = (
+        db.session.query(Transaction.nonce)
+        .filter_by(signer=signer.address, tx_result=None)
+        .all()
+    )
+    network_type = NetworkType.INTERNAL
+    if network.lower() == "main":
+        network_type = NetworkType.MAIN
+    headless_urls = HEADLESS_URLS[network_type]
+    task = chord(
+        stage_transaction.s(headless_url, nonce)
+        for headless_url in headless_urls
+        for nonce, in nonce_list
+    )(send_slack_message.si(channel_id, f"stage {len(nonce_list)} transactions"))
+    return jsonify({"task_id": task.id})
 
 
 @api.post("/transaction-result")
@@ -101,6 +146,12 @@ def stage_transaction():
 def transaction_result():
     channel_id = request.values.get("channel_id")
     network = request.values.get("text")
-    tx_ids = db.session.query(Transaction.tx_id).all()
-    check_tx_result.delay(channel_id, [tx_id for tx_id, in tx_ids], network)
-    return jsonify(200)
+    tx_ids = db.session.query(Transaction.tx_id).filter_by(tx_result=None)
+    network_type = NetworkType.INTERNAL
+    if network.lower() == "main":
+        network_type = NetworkType.MAIN
+    url = MINER_URLS[network_type]
+    task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
+        upload_tx_result.s(channel_id)
+    )
+    return jsonify({"task_id": task.id})
