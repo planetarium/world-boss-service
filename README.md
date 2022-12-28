@@ -16,6 +16,7 @@ This repository provide world boss ranking service for Nine Chronicles
 $ git clone git@github.com:planetarium/world-boss-service.git
 $ poetry install
 $ createdb $dbname
+$ poetry shell
 $ flask --app world_boss/wsgi.py db upgrade --directory world_boss/migrations
 $ flask --app world_boss/wsgi.py --debug run
 ```
