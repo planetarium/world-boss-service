@@ -153,13 +153,13 @@ def fx_transactions() -> typing.List[Transaction]:
         (
             2,
             "db4b916c5c821cbf90356694f231c9f6a6858b67231799dc9ee2d9f2946c4310",
-            "pyaload_2",
+            "payload_2",
         ),
     ]:
         transaction = Transaction()
         transaction.tx_id = tx_id
         transaction.nonce = nonce
         transaction.payload = payload
-        transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        transaction.signer = "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa"
         transactions.append(transaction)
     return transactions

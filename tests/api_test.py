@@ -5,9 +5,14 @@ from datetime import timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from celery.result import AsyncResult
+from pytest_httpx import HTTPXMock
 
 from world_boss.app.cache import cache_exists, set_to_cache
-from world_boss.app.models import Transaction
+from world_boss.app.data_provider import DATA_PROVIDER_URLS
+from world_boss.app.enums import NetworkType
+from world_boss.app.kms import HEADLESS_URLS, MINER_URLS
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 
 
 def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb):
@@ -23,7 +28,7 @@ def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb)
     ],
 )
 def test_raid_rewards(
-    fx_test_client, fx_world_boss_reward_amounts, redisdb, caching: bool
+    fx_test_client, fx_world_boss_reward_amounts, redis_proc, caching: bool
 ):
     reward = fx_world_boss_reward_amounts[0].reward
     raid_id = reward.raid_id
@@ -39,9 +44,16 @@ def test_raid_rewards(
         assert not cache_exists(cache_key)
 
 
-def test_count_total_users(fx_test_client):
+def test_count_total_users(
+    fx_test_client, celery_session_worker, httpx_mock: HTTPXMock
+):
+    httpx_mock.add_response(
+        method="POST",
+        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        json={"data": {"worldBossTotalUsers": 100}},
+    )
     with unittest.mock.patch(
-        "world_boss.app.api.count_users.delay"
+        "world_boss.app.tasks.client.chat_postMessage"
     ) as m, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
@@ -49,80 +61,130 @@ def test_count_total_users(fx_test_client):
             "/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        assert req.json == 200
-        m.assert_called_once_with("channel_id", 1)
+        task_id = req.json["task_id"]
+        task: AsyncResult = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert task.state == "SUCCESS"
+        m.assert_called_once_with(
+            channel="channel_id", text="world boss season 1 total users: 100"
+        )
 
 
-def test_generate_ranking_rewards_csv(fx_test_client):
+def test_generate_ranking_rewards_csv(
+    fx_test_client, celery_session_worker, httpx_mock: HTTPXMock, fx_ranking_rewards
+):
+    requested_rewards = [
+        {
+            "raider": {
+                "address": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
+                "ranking": 101,
+            },
+            "rewards": fx_ranking_rewards,
+        },
+    ]
+    httpx_mock.add_response(
+        method="POST",
+        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        json={"data": {"worldBossRankingRewards": requested_rewards}},
+    )
+
+    httpx_mock.add_response(
+        method="POST",
+        url=MINER_URLS[NetworkType.MAIN],
+        json={
+            "data": {
+                "stateQuery": {
+                    "arg01A0b412721b00bFb5D619378F8ab4E4a97646Ca": {
+                        "agentAddress": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
+                    },
+                }
+            }
+        },
+    )
+
     with unittest.mock.patch(
-        "world_boss.app.api.get_ranking_rewards.delay"
+        "world_boss.app.tasks.client.files_upload_v2"
     ) as m, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
         req = fx_test_client.post(
-            "/raid/rewards/list", data={"text": "1 2 3", "channel_id": "channel_id"}
+            "/raid/rewards/list", data={"text": "1 1 1", "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        assert req.json == 200
-        m.assert_called_once_with("channel_id", 1, 2, 3)
+        task_id = req.json["task_id"]
+        task: AsyncResult = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert task.state == "SUCCESS"
+        m.assert_called_once()
+        # skip check file. because file is temp file.
+        kwargs = m.call_args.kwargs
+        assert kwargs["file"]
+        assert kwargs["channels"] == "channel_id"
+        assert kwargs["title"] == f"world_boss_1_1_1_result"
+        assert kwargs["filename"] == f"world_boss_1_1_1_result.csv"
 
 
 @pytest.mark.parametrize("has_header", [True, False])
-def test_prepare_transfer_assets(fx_test_client, has_header: bool):
+def test_prepare_transfer_assets(
+    fx_test_client, celery_session_worker, fx_session, has_header: bool
+):
+    assert not fx_session.query(Transaction).first()
+    assert not fx_session.query(WorldBossReward).first()
+    assert not fx_session.query(WorldBossRewardAmount).first()
     header = "raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce\n"
-    content = (
-        "2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,1000000,CRYSTAL,"
-        "18,55\n2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,3500,"
-        "RUNESTONE_FENRIR1,0,55\n2,1,0xC36f031aA721f52532BA665Ba9F020e45437D98D,"
-        "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,1200,RUNESTONE_FENRIR2,0,55\n2,1,"
-        "0xC36f031aA721f52532BA665Ba9F020e45437D98D,5Ea5755eD86631a4D086CC4Fae41740C8985F1B4,300,"
-        "RUNESTONE_FENRIR3,0,55"
-    )
+    content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
+    3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,150000,CRYSTAL,18,176
+    3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,560,RUNESTONE_FENRIR1,0,176
+    3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,150,RUNESTONE_FENRIR2,0,176
+    3,26,0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c,1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE,40,RUNESTONE_FENRIR3,0,176"""
+
+    expected = [
+        {
+            "nonce": 175,
+            "ranking": 25,
+            "agent_address": "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4",
+            "avatar_address": "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d",
+        },
+        {
+            "nonce": 176,
+            "ranking": 26,
+            "agent_address": "0x1774cd5d2C1C0f72AA75E9381889a1a554797a4c",
+            "avatar_address": "1F8d5e0D201B7232cE3BC8d630d09E3F9107CceE",
+        },
+    ]
+    reward_amounts = [
+        {
+            "ticker": "CRYSTAL",
+            "decimal_places": 18,
+            "amount": 150000,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR1",
+            "decimal_places": 0,
+            "amount": 560,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR2",
+            "decimal_places": 0,
+            "amount": 150,
+        },
+        {
+            "ticker": "RUNESTONE_FENRIR3",
+            "decimal_places": 0,
+            "amount": 40,
+        },
+    ]
+
     mocked_response = MagicMock()
     mocked_response.data = {
         "content": header + content if has_header else content,
     }
-    recipient_map = {
-        55: [
-            {
-                "amount": {
-                    "decimalPlaces": 18,
-                    "quantity": 1000000,
-                    "ticker": "CRYSTAL",
-                },
-                "recipient": "0xC36f031aA721f52532BA665Ba9F020e45437D98D",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 3500,
-                    "ticker": "RUNESTONE_FENRIR1",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 1200,
-                    "ticker": "RUNESTONE_FENRIR2",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-            {
-                "amount": {
-                    "decimalPlaces": 0,
-                    "quantity": 300,
-                    "ticker": "RUNESTONE_FENRIR3",
-                },
-                "recipient": "5Ea5755eD86631a4D086CC4Fae41740C8985F1B4",
-            },
-        ]
-    }
     with unittest.mock.patch(
         "world_boss.app.api.client.files_info", return_value=mocked_response
     ) as m, unittest.mock.patch(
-        "world_boss.app.api.prepare_world_boss_ranking_rewards.delay"
-    ) as m2, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
         req = fx_test_client.post(
@@ -133,11 +195,34 @@ def test_prepare_transfer_assets(fx_test_client, has_header: bool):
             },
         )
         assert req.status_code == 200
-        assert req.json == 200
+        task_id = req.json["task_id"]
+        task: AsyncResult = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert task.state == "SUCCESS"
         m.assert_called_once_with(file="2")
-        m2.assert_called_once_with(
-            [r.split(",") for r in content.split("\n")], "2022-12-31"
-        )
+        assert fx_session.query(Transaction).count() == 2
+        assert fx_session.query(WorldBossReward).count() == 2
+        assert fx_session.query(WorldBossRewardAmount).count() == 8
+        for i, tx in enumerate(
+            fx_session.query(Transaction).order_by(Transaction.nonce)
+        ):
+            assert tx.nonce == expected[i]["nonce"]
+            assert tx.tx_result is None
+            assert len(tx.amounts) == 4
+
+            world_boss_reward = tx.amounts[0].reward
+            assert world_boss_reward.raid_id == 3
+            assert world_boss_reward.ranking == expected[i]["ranking"]
+            assert world_boss_reward.agent_address == expected[i]["agent_address"]
+            assert world_boss_reward.avatar_address == expected[i]["avatar_address"]
+
+            for v, world_boss_reward_amount in enumerate(tx.amounts):
+                assert world_boss_reward_amount.ticker == reward_amounts[v]["ticker"]
+                assert (
+                    world_boss_reward_amount.decimal_places
+                    == reward_amounts[v]["decimal_places"]
+                )
+                assert world_boss_reward_amount.amount == reward_amounts[v]["amount"]
 
 
 def test_next_tx_nonce(
@@ -162,9 +247,38 @@ def test_next_tx_nonce(
         m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")
 
 
-def test_prepare_reward_assets(fx_test_client):
+def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session):
+    result = []
+    assets = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+    ]
+    reward = WorldBossReward()
+    reward.avatar_address = "avatar_address"
+    reward.agent_address = "agent_address"
+    reward.raid_id = 3
+    reward.ranking = 1
+
+    for i, asset in enumerate(assets):
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = asset["quantity"]
+        reward_amount.ticker = asset["ticker"]
+        reward_amount.decimal_places = asset["decimalPlaces"]
+        reward_amount.reward = reward
+        tx_id = i
+        reward_amount.tx_id = tx_id
+        transaction = Transaction()
+        transaction.tx_id = tx_id
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
+        fx_session.add(transaction)
+        result.append(reward_amount)
+    fx_session.commit()
     with unittest.mock.patch(
-        "world_boss.app.api.upload_prepare_reward_assets.delay"
+        "world_boss.app.tasks.client.chat_postMessage"
     ) as m, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
@@ -172,14 +286,47 @@ def test_prepare_reward_assets(fx_test_client):
             "/prepare-reward-assets", data={"channel_id": "channel_id", "text": "3"}
         )
         assert req.status_code == 200
-        assert req.json == 200
-        m.assert_called_once_with("channel_id", 3)
+        task_id = req.json["task_id"]
+        task = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert task.state == "SUCCESS"
+
+        m.assert_called_once_with(
+            channel="channel_id",
+            text="world boss season 3 prepareRewardAssets\n```plain_value:{'type_id': 'prepare_reward_assets', 'values': {'a': "
+            "[], 'r': "
+            "b'%1\\xe5\\xe0l\\xbd\\x11\\xafT\\xf9\\x8d9W\\x89\\x90qo\\xfc}\\xba'}}\n"
+            "\n"
+            "6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565```",
+        )
 
 
 @pytest.mark.parametrize("text", ["main", "internal"])
-def test_stage_transaction(fx_test_client, text: str):
+def test_stage_transactions(
+    fx_test_client,
+    celery_session_worker,
+    fx_session,
+    fx_transactions,
+    httpx_mock: HTTPXMock,
+    text: str,
+):
+    for tx in fx_transactions:
+        fx_session.add(tx)
+    fx_session.commit()
+    network_type = NetworkType.MAIN if text.lower() == "main" else NetworkType.INTERNAL
+    urls = HEADLESS_URLS[network_type]
+    for url in urls:
+        httpx_mock.add_response(
+            url=url,
+            method="POST",
+            json={
+                "data": {
+                    "stageTransaction": "tx_id",
+                }
+            },
+        )
     with unittest.mock.patch(
-        "world_boss.app.api.stage_transactions.delay"
+        "world_boss.app.tasks.client.chat_postMessage"
     ) as m, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
@@ -187,17 +334,40 @@ def test_stage_transaction(fx_test_client, text: str):
             "/stage-transaction", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        assert req.json == 200
-        m.assert_called_once_with("channel_id", text)
+        task_id = req.json["task_id"]
+        task: AsyncResult = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert len(httpx_mock.get_requests()) == len(urls) * len(fx_transactions)
+        m.assert_called_once_with(
+            channel="channel_id", text=f"stage {len(fx_transactions)} transactions"
+        )
 
 
-@pytest.mark.parametrize("text", ["main", "internal"])
-def test_transaction_result(fx_test_client, fx_session, fx_transactions, text: str):
-    for tx in fx_transactions:
-        fx_session.add(tx)
-    fx_session.flush()
+@pytest.mark.parametrize("text", ["main", "MAIN"])
+def test_transaction_result(
+    fx_test_client, fx_session, celery_session_worker, text: str
+):
+    for nonce, tx_id, payload in [
+        (
+            1,
+            "a9c9444bd50b3164b5c251315960272ae1f42f7b2d5b95948a78c608424bbcb2",
+            "payload_1",
+        ),
+        (
+            2,
+            "db4b916c5c821cbf90356694f231c9f6a6858b67231799dc9ee2d9f2946c4310",
+            "payload_2",
+        ),
+    ]:
+        transaction = Transaction()
+        transaction.tx_id = tx_id
+        transaction.nonce = nonce
+        transaction.payload = payload
+        transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        fx_session.add(transaction)
+    fx_session.commit()
     with unittest.mock.patch(
-        "world_boss.app.api.check_tx_result.delay"
+        "world_boss.app.tasks.client.files_upload_v2"
     ) as m, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
@@ -205,10 +375,18 @@ def test_transaction_result(fx_test_client, fx_session, fx_transactions, text: s
             "/transaction-result", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        assert req.json == 200
-        m.assert_called_once_with(
-            "channel_id", [tx.tx_id for tx in fx_transactions], text
-        )
+        task_id = req.json["task_id"]
+        task: AsyncResult = AsyncResult(task_id)
+        task.get(timeout=30)
+        assert task.state == "SUCCESS"
+        m.assert_called_once()
+        kwargs = m.call_args.kwargs
+        assert kwargs["file"]
+        assert kwargs["channels"] == "channel_id"
+        assert kwargs["title"] == "world_boss_tx_result"
+        assert "world_boss_tx_result" in kwargs["filename"]
+        for tx in fx_session.query(Transaction):
+            assert tx.tx_result == "SUCCESS"
 
 
 @pytest.mark.parametrize(

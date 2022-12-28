@@ -24,7 +24,7 @@ from world_boss.app.stubs import (
 @pytest.mark.parametrize("offset", [0, 1])
 @pytest.mark.parametrize("limit", [1, 2])
 def test_update_agent_address(
-    redisdb, network_type: NetworkType, caching: bool, offset: int, limit: int
+    redis_proc, network_type: NetworkType, caching: bool, offset: int, limit: int
 ):
     cache_key = f"world_boss_agents_1_{network_type}_{offset}_{limit}"
     rewards: List[RankingRewardDictionary] = [

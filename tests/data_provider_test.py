@@ -22,7 +22,11 @@ def test_get_total_users_count(
 @pytest.mark.parametrize("raid_id", [1, 2])
 @pytest.mark.parametrize("caching", [True, False])
 def test_get_ranking_rewards(
-    redisdb, network_type: NetworkType, raid_id: int, caching: bool, fx_ranking_rewards
+    redis_proc,
+    network_type: NetworkType,
+    raid_id: int,
+    caching: bool,
+    fx_ranking_rewards,
 ):
     offset = 0
     limit = 1
