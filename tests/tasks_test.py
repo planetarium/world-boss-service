@@ -194,7 +194,6 @@ def test_send_slack_message(
 def test_stage_transaction(
     celery_session_worker,
     fx_session,
-    httpx_mock: HTTPXMock,
     network_type: NetworkType,
 ):
     transaction = Transaction()
@@ -205,19 +204,22 @@ def test_stage_transaction(
     fx_session.add(transaction)
     fx_session.commit()
     url = MINER_URLS[network_type]
-    httpx_mock.add_response(
-        url=url,
-        method="POST",
-        json={
-            "data": {
-                "stageTransaction": "tx_id",
-            }
-        },
-    )
-    result = stage_transaction.delay(url, 1).get(timeout=3)
-    req = httpx_mock.get_request()
-    assert req is not None
-    assert result == "tx_id"
+    with unittest.mock.patch(
+        "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
+    ) as m:
+        result = stage_transaction.delay(url, 1).get(timeout=3)
+        m.assert_called_once()
+        # for check tx class.
+        call_args = m.call_args
+        assert call_args[0][0] == url
+        assert isinstance(call_args[0][1], Transaction)
+        tx = call_args[0][1]
+        assert (
+            tx.tx_id == transaction.tx_id
+            and tx.signer == transaction.signer
+            and tx.nonce == transaction.nonce
+        )
+        assert result == "tx_id"
 
 
 def test_query_tx_result(celery_session_worker, fx_session, fx_transactions):

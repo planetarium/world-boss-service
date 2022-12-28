@@ -314,20 +314,11 @@ def test_stage_transactions(
         fx_session.add(tx)
     fx_session.commit()
     network_type = NetworkType.MAIN if text.lower() == "main" else NetworkType.INTERNAL
-    urls = HEADLESS_URLS[network_type]
-    for url in urls:
-        httpx_mock.add_response(
-            url=url,
-            method="POST",
-            json={
-                "data": {
-                    "stageTransaction": "tx_id",
-                }
-            },
-        )
     with unittest.mock.patch(
-        "world_boss.app.tasks.client.chat_postMessage"
+        "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
     ) as m, unittest.mock.patch(
+        "world_boss.app.tasks.client.chat_postMessage"
+    ) as m2, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
         req = fx_test_client.post(
@@ -337,8 +328,8 @@ def test_stage_transactions(
         task_id = req.json["task_id"]
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
-        assert len(httpx_mock.get_requests()) == len(urls) * len(fx_transactions)
-        m.assert_called_once_with(
+        assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
+        m2.assert_called_once_with(
             channel="channel_id", text=f"stage {len(fx_transactions)} transactions"
         )
 
