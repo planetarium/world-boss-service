@@ -4,10 +4,8 @@ import datetime
 import hashlib
 import typing
 
-import backoff
 import boto3
 import ethereum_kms_signer  # type: ignore
-import httpx
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
 from gql import Client
 from gql.dsl import DSLMutation, DSLQuery, DSLSchema, dsl_gql
@@ -41,7 +39,6 @@ HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {
 class KmsWorldBossSigner:
     def __init__(self, key_id: str):
         self._key_id = key_id
-        self.async_client = httpx.AsyncClient()
 
     @property
     def public_key(self) -> bytes:
@@ -101,17 +98,6 @@ class KmsWorldBossSigner:
             )
             result = session.execute(query)
             return bytes.fromhex(result["transaction"]["signTransaction"])
-
-    @backoff.on_exception(
-        backoff.expo,
-        (httpx.ConnectTimeout, httpx.ConnectError),
-        max_tries=5,
-    )
-    async def _query_async(self, headless_url: str, query: str, variables: dict):
-        result = await self.async_client.post(
-            headless_url, json={"query": query, "variables": variables}
-        )
-        return result.json()
 
     def _save_transaction(self, signed_transaction: bytes, nonce) -> Transaction:
         transaction = Transaction()

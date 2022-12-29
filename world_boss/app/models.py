@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from world_boss.app.currency import Currency
 from world_boss.app.orm import db
 
 
@@ -30,14 +29,6 @@ class WorldBossRewardAmount(db.Model):  # type: ignore
             "tx_id": self.tx_id,
             "decimal_places": self.decimal_places,
             "tx_result": self.transaction.tx_result,
-        }
-
-    def as_fav(self) -> dict:
-        return {
-            "amount": self.amount,
-            "currency": Currency(
-                decimal_places=self.decimal_places, minters=None, ticker=self.ticker
-            ),
         }
 
 
