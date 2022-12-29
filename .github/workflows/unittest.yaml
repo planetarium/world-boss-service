@@ -39,4 +39,6 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           KMS_KEY_ID: ${{ secrets.KMS_KEY_ID }}
         run: |
-          poetry run pytest -x --ff --redis-exec=$(which redis-server)
+          poetry run pytest --redis-exec=$(which redis-server) --cov world_boss --cov-report=xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3

@@ -43,9 +43,5 @@ def make_celery(flask_app):
     return celery
 
 
-def index():
-    return "hello world"
-
-
 app = create_app()
 cel = make_celery(app)

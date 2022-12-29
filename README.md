@@ -3,6 +3,7 @@
 [![Poetry](https://img.shields.io/badge/poetry-1.2.2-blue.svg)](https://python-poetry.org/docs/#installation)
 [![Postgres](https://img.shields.io/badge/Postgres-13.7-blue.svg)](https://www.postgresql.org/ftp/source/v13.7/)
 [![Redis](https://img.shields.io/badge/redis-7.0-blue.svg)](https://redis.io/download/)
+[![codecov](https://codecov.io/gh/planetarium/world-boss-service/branch/main/graph/badge.svg?token=exiAaXgY2Z)](https://codecov.io/gh/planetarium/world-boss-service)
 
 ## Introduction
 This repository provide world boss ranking service for Nine Chronicles
