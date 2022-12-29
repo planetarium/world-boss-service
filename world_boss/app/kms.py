@@ -9,6 +9,9 @@ import boto3
 import ethereum_kms_signer  # type: ignore
 import httpx
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
+from gql import Client
+from gql.dsl import DSLMutation, DSLQuery, DSLSchema, dsl_gql
+from gql.transport.httpx import HTTPXAsyncTransport, HTTPXTransport
 from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
 from pyasn1.type.univ import Integer, SequenceOf  # type: ignore
@@ -39,7 +42,6 @@ class KmsWorldBossSigner:
     def __init__(self, key_id: str):
         self._key_id = key_id
         self.async_client = httpx.AsyncClient()
-        self._client = httpx.Client()
 
     @property
     def public_key(self) -> bytes:
@@ -52,6 +54,14 @@ class KmsWorldBossSigner:
     @property
     def address(self) -> str:
         return ethereum_kms_signer.get_eth_address(self._key_id)
+
+    def _get_client(self, headless_url: str) -> Client:
+        transport = HTTPXTransport(url=headless_url)
+        return Client(transport=transport, fetch_schema_from_transport=True)
+
+    def _get_async_client(self, headless_url: str) -> Client:
+        transport = HTTPXAsyncTransport(url=headless_url)
+        return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _sign_and_save(
         self, headless_url: str, unsigned_transaction: bytes, nonce: int
@@ -75,21 +85,22 @@ class KmsWorldBossSigner:
     def _sign_transaction(
         self, headless_url: str, unsigned_transaction: bytes, signature: bytes
     ) -> bytes:
-        query = """
-        query($unsignedTransaction: String!, $signature: String!)
-        {
-            transaction {
-                signTransaction(unsignedTransaction: $unsignedTransaction, signature: $signature)
-            }
-        }
-        """
-        variables = {
-            "unsignedTransaction": unsigned_transaction.hex(),
-            "signature": signature.hex(),
-        }
-
-        result = self._query(headless_url, query, variables)
-        return bytes.fromhex(result["data"]["transaction"]["signTransaction"])
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.transaction.select(
+                        ds.TransactionHeadlessQuery.signTransaction.args(
+                            unsignedTransaction=unsigned_transaction.hex(),
+                            signature=signature.hex(),
+                        )
+                    )
+                )
+            )
+            result = session.execute(query)
+            return bytes.fromhex(result["transaction"]["signTransaction"])
 
     @backoff.on_exception(
         backoff.expo,
@@ -98,17 +109,6 @@ class KmsWorldBossSigner:
     )
     async def _query_async(self, headless_url: str, query: str, variables: dict):
         result = await self.async_client.post(
-            headless_url, json={"query": query, "variables": variables}
-        )
-        return result.json()
-
-    @backoff.on_exception(
-        backoff.expo,
-        (httpx.ConnectTimeout, httpx.ConnectError),
-        max_tries=5,
-    )
-    def _query(self, headless_url: str, query: str, variables: dict):
-        result = self._client.post(
             headless_url, json={"query": query, "variables": variables}
         )
         return result.json()
@@ -132,113 +132,118 @@ class KmsWorldBossSigner:
         memo: str,
         headless_url: str,
     ) -> Transaction:
-        query = """
-        query($publicKey: String!, $timeStamp: DateTimeOffset!, $nonce: Long, $sender: Address! $recipients: [RecipientsInputType!]!, $memo: String) {
-          actionTxQuery(publicKey: $publicKey, timestamp: $timeStamp, nonce: $nonce) {
-            transferAssets(sender: $sender, recipients: $recipients, memo: $memo)
-          }
-        }
-            """
-        variables = {
-            "publicKey": self.public_key.hex(),
-            "timeStamp": time_stamp.isoformat(),
-            "nonce": nonce,
-            "sender": self.address,
-            "recipients": recipients,
-            "memo": memo,
-        }
-
-        result = self._query(headless_url, query, variables)
-        unsigned_transaction = bytes.fromhex(
-            result["data"]["actionTxQuery"]["transferAssets"]
-        )
-        return self._sign_and_save(headless_url, unsigned_transaction, nonce)
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.actionTxQuery.args(
+                        publicKey=self.public_key.hex(),
+                        timestamp=time_stamp.isoformat(),
+                        nonce=nonce,
+                    ).select(
+                        ds.ActionTxQuery.transferAssets.args(
+                            sender=self.address, recipients=recipients, memo=memo
+                        )
+                    )
+                )
+            )
+            result = session.execute(query)
+            unsigned_transaction = bytes.fromhex(
+                result["actionTxQuery"]["transferAssets"]
+            )
+            return self._sign_and_save(headless_url, unsigned_transaction, nonce)
 
     def prepare_reward_assets(
         self, headless_url: str, assets: typing.List[AmountDictionary]
     ) -> str:
-        query = """
-query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
-  actionQuery {
-    prepareRewardAssets(rewardPoolAddress: $rewardPoolAddress, assets: $assets)
-  }
-}
-        """
-        variables = {
-            "rewardPoolAddress": self.address,
-            "assets": assets,
-        }
-        result = self._query(headless_url, query, variables)
-        return result["data"]["actionQuery"]["prepareRewardAssets"]
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.actionQuery().select(
+                        ds.ActionQuery.prepareRewardAssets.args(
+                            rewardPoolAddress=self.address, assets=assets
+                        )
+                    )
+                )
+            )
+            result = session.execute(query)
+            return result["actionQuery"]["prepareRewardAssets"]
 
     def stage_transaction(self, headless_url: str, transaction: Transaction) -> str:
-        query = """
-        mutation($payload: String!) {
-          stageTransaction(payload: $payload)
-        }
-            """
-        variables = {
-            "payload": transaction.payload,
-        }
-        result = self._query(headless_url, query, variables)
-        return result["data"]["stageTransaction"]
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLMutation(
+                    ds.StandaloneMutation.stageTransaction.args(
+                        payload=transaction.payload
+                    )
+                )
+            )
+            result = session.execute(query)
+            return result["stageTransaction"]
 
     def query_transaction_result(self, headless_url: str, tx_id: str) -> str:
-        query = """
-            query($txId: TxId!) {
-              transaction {
-                transactionResult(txId: $txId) {
-                  blockHash
-                  blockIndex
-                  txStatus
-                  exceptionName
-                  exceptionMetadata
-                }
-              }
-            }
-            """
-        variables = {
-            "txId": tx_id,
-        }
-        result = self._query(headless_url, query, variables)
-        tx_result = result["data"]["transaction"]["transactionResult"]
-        tx_status = tx_result["txStatus"]
-        transaction = db.session.query(Transaction).filter_by(tx_id=tx_id).one()
-        transaction.tx_result = tx_status
-        db.session.add(transaction)
-        db.session.commit()
-        return tx_status
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.transaction.select(
+                        ds.TransactionHeadlessQuery.transactionResult.args(
+                            txId=tx_id
+                        ).select(
+                            ds.TxResultType.txStatus,
+                        )
+                    )
+                )
+            )
+            result = session.execute(query)
+            tx_result = result["transaction"]["transactionResult"]
+            tx_status = tx_result["txStatus"]
+            transaction = db.session.query(Transaction).filter_by(tx_id=tx_id).one()
+            transaction.tx_result = tx_status
+            db.session.add(transaction)
+            db.session.commit()
+            return tx_status
 
-    async def stage_transactions_async(self, network_type: NetworkType) -> None:
-        query = """
-        mutation($payload: String!) {
-          stageTransaction(payload: $payload)
-        }
-            """
+    async def stage_transactions_async(self, network_type: NetworkType):
         headless_urls = HEADLESS_URLS[network_type]
         transactions = Transaction.query.filter_by(tx_result=None).order_by(
             Transaction.nonce
         )
-        await asyncio.gather(
+        result = await asyncio.gather(
             *[
                 self.stage_transaction_async(headless_url, transaction)
                 for headless_url in headless_urls
                 for transaction in transactions
             ]
         )
+        return result
 
     async def stage_transaction_async(
         self, headless_url: str, transaction: Transaction
-    ):
-        query = """
-        mutation($payload: String!) {
-          stageTransaction(payload: $payload)
-        }
-            """
-        variables = {
-            "payload": transaction.payload,
-        }
-        await self._query_async(headless_url, query, variables)
+    ) -> str:
+        client = self._get_async_client(headless_url)
+        async with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLMutation(
+                    ds.StandaloneMutation.stageTransaction.args(
+                        payload=transaction.payload
+                    )
+                )
+            )
+            result = await session.execute(query)
+            return result["stageTransaction"]
 
     async def check_transaction_status_async(self, network_type: NetworkType):
         headless_url = MINER_URLS[network_type]
@@ -256,27 +261,26 @@ query($rewardPoolAddress: Address!, $assets: [FungibleAssetValueInputType!]!) {
     async def query_transaction_result_async(
         self, headless_url: str, transaction: Transaction
     ):
-        query = """
-            query($txId: TxId!) {
-              transaction {
-                transactionResult(txId: $txId) {
-                  blockHash
-                  blockIndex
-                  txStatus
-                  exceptionName
-                  exceptionMetadata
-                }
-              }
-            }
-            """
-        variables = {
-            "txId": transaction.tx_id,
-        }
-        result = await self._query_async(headless_url, query, variables)
-        tx_result = result["data"]["transaction"]["transactionResult"]
-        tx_status = tx_result["txStatus"]
-        transaction.tx_result = tx_status
-        db.session.add(transaction)
+        client = self._get_async_client(headless_url)
+        async with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.transaction.select(
+                        ds.TransactionHeadlessQuery.transactionResult.args(
+                            txId=transaction.tx_id
+                        ).select(
+                            ds.TxResultType.txStatus,
+                        )
+                    )
+                )
+            )
+            result = await session.execute(query)
+            tx_result = result["transaction"]["transactionResult"]
+            tx_status = tx_result["txStatus"]
+            transaction.tx_result = tx_status
+            db.session.add(transaction)
 
 
 signer = KmsWorldBossSigner(config.kms_key_id)

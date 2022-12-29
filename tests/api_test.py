@@ -2,6 +2,7 @@ import json
 import time
 import unittest
 from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
@@ -15,7 +16,7 @@ from world_boss.app.kms import HEADLESS_URLS, MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 
 
-def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb):
+def test_raid_rewards_404(fx_test_client, redisdb, fx_session):
     req = fx_test_client.get("/raid/1/test/rewards")
     assert req.status_code == 404
 
@@ -27,12 +28,30 @@ def test_raid_rewards_404(fx_test_client, fx_world_boss_reward_amounts, redisdb)
         False,
     ],
 )
-def test_raid_rewards(
-    fx_test_client, fx_world_boss_reward_amounts, redis_proc, caching: bool
-):
-    reward = fx_world_boss_reward_amounts[0].reward
+def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
+    reward = WorldBossReward()
+    reward.avatar_address = "avatar_address"
+    reward.agent_address = "agent_address"
+    reward.raid_id = 1
+    reward.ranking = 1
+    i = 1
+    for ticker, decimal_places in [("CRYSTAL", 18), ("RUNE_FENRIR1", 0)]:
+        transaction = Transaction()
+        transaction.tx_id = str(i)
+        transaction.signer = "signer"
+        transaction.payload = f"10 {ticker}"
+        transaction.nonce = i
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = Decimal("10")
+        reward_amount.ticker = ticker
+        reward_amount.decimal_places = decimal_places
+        reward_amount.reward = reward
+        reward_amount.transaction = transaction
+        fx_session.add(reward_amount)
+        i += 1
+    fx_session.commit()
     raid_id = reward.raid_id
-    avatar_address = fx_world_boss_reward_amounts[0].reward.avatar_address
+    avatar_address = reward.avatar_address
     if caching:
         cache_key = f"raid_rewards_{avatar_address}_{raid_id}_json"
         set_to_cache(cache_key, json.dumps(reward.as_dict()), timedelta(seconds=1))
@@ -314,20 +333,11 @@ def test_stage_transactions(
         fx_session.add(tx)
     fx_session.commit()
     network_type = NetworkType.MAIN if text.lower() == "main" else NetworkType.INTERNAL
-    urls = HEADLESS_URLS[network_type]
-    for url in urls:
-        httpx_mock.add_response(
-            url=url,
-            method="POST",
-            json={
-                "data": {
-                    "stageTransaction": "tx_id",
-                }
-            },
-        )
     with unittest.mock.patch(
-        "world_boss.app.tasks.client.chat_postMessage"
+        "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
     ) as m, unittest.mock.patch(
+        "world_boss.app.tasks.client.chat_postMessage"
+    ) as m2, unittest.mock.patch(
         "world_boss.app.slack.verifier.is_valid_request", return_value=True
     ):
         req = fx_test_client.post(
@@ -337,8 +347,8 @@ def test_stage_transactions(
         task_id = req.json["task_id"]
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
-        assert len(httpx_mock.get_requests()) == len(urls) * len(fx_transactions)
-        m.assert_called_once_with(
+        assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
+        m2.assert_called_once_with(
             channel="channel_id", text=f"stage {len(fx_transactions)} transactions"
         )
 

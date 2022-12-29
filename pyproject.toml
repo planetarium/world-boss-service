@@ -28,6 +28,7 @@ celery = "^5.2.7"
 celery-types = "^0.14.0"
 pydantic = {extras = ["dotenv"], version = "^1.10.2"}
 bencodex = "^1.0.1"
+gql = {version = "^3.5.0b0", allow-prereleases = true}
 
 
 [tool.poetry.group.dev.dependencies]

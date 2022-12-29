@@ -3,7 +3,6 @@ from typing import List
 
 import bencodex
 import pytest
-from pytest_httpx import HTTPXMock
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
@@ -47,65 +46,20 @@ def test_transfer_assets(fx_session) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "network_type",
-    [
-        NetworkType.INTERNAL,
-        NetworkType.MAIN,
-    ],
-)
-async def test_stage_transactions_async(
-    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
-):
-    for nonce in [1, 2, 3]:
-        tx = Transaction()
-        tx.tx_id = str(nonce)
-        tx.nonce = nonce
-        tx.signer = "signer"
-        tx.payload = "payload"
-        fx_session.add(tx)
+async def test_stage_transactions_async(fx_session, fx_mainnet_transactions):
+    fx_session.add_all(fx_mainnet_transactions)
     fx_session.flush()
-    urls = HEADLESS_URLS[network_type]
-    for url in urls:
-        httpx_mock.add_response(
-            url=url,
-            method="POST",
-            json={
-                "data": {
-                    "stageTransaction": 1,
-                }
-            },
-        )
-    await signer.stage_transactions_async(network_type)
-    assert len(httpx_mock.get_requests()) == len(urls) * 3
+    result = await signer.stage_transactions_async(NetworkType.INTERNAL)
+    for transaction in fx_mainnet_transactions:
+        assert transaction.tx_id in result
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "network_type",
-    [
-        NetworkType.INTERNAL,
-        NetworkType.MAIN,
-    ],
-)
-async def test_check_transaction_status_async(
-    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
-):
-    for nonce in [1, 2, 3]:
-        tx = Transaction()
-        tx.tx_id = str(nonce)
-        tx.nonce = nonce
-        tx.signer = "signer"
-        tx.payload = "payload"
-        fx_session.add(tx)
+async def test_check_transaction_status_async(fx_session, fx_mainnet_transactions):
+    assert fx_session.query(Transaction).count() == 0
+    fx_session.add_all(fx_mainnet_transactions)
     fx_session.flush()
-    httpx_mock.add_response(
-        method="POST",
-        url=MINER_URLS[network_type],
-        json={"data": {"transaction": {"transactionResult": {"txStatus": "SUCCESS"}}}},
-    )
-    await signer.check_transaction_status_async(network_type)
-    assert len(httpx_mock.get_requests()) == 3
+    await signer.check_transaction_status_async(NetworkType.MAIN)
     transactions = fx_session.query(Transaction)
     for transaction in transactions:
         assert transaction.tx_result == "SUCCESS"
@@ -133,59 +87,20 @@ def test_prepare_reward_assets(fx_app, network_type: NetworkType):
     )
 
 
-@pytest.mark.parametrize(
-    "network_type",
-    [
-        NetworkType.INTERNAL,
-        NetworkType.MAIN,
-    ],
-)
-def test_stage_transaction(
-    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
-):
-    tx = Transaction()
-    tx.tx_id = str(1)
-    tx.nonce = 1
-    tx.signer = "signer"
-    tx.payload = "payload"
+def test_stage_transaction(fx_session, fx_mainnet_transactions):
+    tx = fx_mainnet_transactions[0]
     fx_session.add(tx)
     fx_session.flush()
-    urls = HEADLESS_URLS[network_type]
+    urls = HEADLESS_URLS[NetworkType.INTERNAL]
     for url in urls:
-        httpx_mock.add_response(
-            url=url,
-            method="POST",
-            json={
-                "data": {
-                    "stageTransaction": 1,
-                }
-            },
-        )
-        assert signer.stage_transaction(url, tx) == 1
+        assert signer.stage_transaction(url, tx) == tx.tx_id
 
 
-@pytest.mark.parametrize(
-    "network_type",
-    [
-        NetworkType.INTERNAL,
-        NetworkType.MAIN,
-    ],
-)
-def test_query_transaction_result(
-    fx_session, httpx_mock: HTTPXMock, network_type: NetworkType
-):
-    tx = Transaction()
-    tx.tx_id = str(1)
-    tx.nonce = 1
-    tx.signer = "signer"
-    tx.payload = "payload"
+def test_query_transaction_result(fx_session, fx_mainnet_transactions):
+    tx = fx_mainnet_transactions[0]
     fx_session.add(tx)
     fx_session.flush()
-    httpx_mock.add_response(
-        method="POST",
-        url=MINER_URLS[network_type],
-        json={"data": {"transaction": {"transactionResult": {"txStatus": "SUCCESS"}}}},
-    )
-    signer.query_transaction_result(MINER_URLS[network_type], "1")
+    url = MINER_URLS[NetworkType.MAIN]
+    signer.query_transaction_result(url, tx.tx_id)
     transaction = fx_session.query(Transaction).one()
     assert transaction.tx_result == "SUCCESS"
