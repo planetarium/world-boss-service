@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from celery.result import AsyncResult
+from flask.testing import FlaskClient
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.cache import cache_exists, set_to_cache
@@ -455,3 +456,9 @@ def test_check_balance(fx_session, fx_test_client, celery_session_worker):
 def test_slack_auth(fx_test_client, url: str):
     req = fx_test_client.post(url)
     assert req.status_code == 403
+
+
+def test_ping(fx_test_client: FlaskClient):
+    req = fx_test_client.get("/ping")
+    assert req.status_code == 200
+    assert req.json == {"message": "pong"}
