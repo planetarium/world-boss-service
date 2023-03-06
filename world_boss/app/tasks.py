@@ -18,6 +18,7 @@ from world_boss.app.raid import (
 )
 from world_boss.app.slack import client
 from world_boss.app.stubs import (
+    CurrencyDictionary,
     RankingRewardWithAgentDictionary,
     Recipient,
     RecipientRow,
@@ -189,3 +190,19 @@ def upload_tx_result(tx_results: List[Tuple[str, str]], channel_id: str):
                 filename=f"world_boss_tx_result_{datetime.utcnow()}.csv",
                 file=file_name,
             )
+
+
+@celery.task()
+def check_signer_balance(headless_url: str, currency: CurrencyDictionary) -> str:
+    # app context for task.
+    from world_boss.wsgi import app
+
+    with app.app_context():
+        return signer.query_balance(headless_url, currency)
+
+
+@celery.task()
+def upload_balance_result(balance: List[str], channel_id: str):
+    balance_str = "\n".join(balance)
+    msg = f"world boss pool balance.\naddress:{signer.address}\n\n{balance_str}"
+    send_slack_message(channel_id, msg)

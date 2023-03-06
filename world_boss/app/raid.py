@@ -205,3 +205,22 @@ def write_tx_result_csv(file_name: str, tx_results: List[Tuple[str, str]]):
         )
         for tx_result in tx_results:
             writer.writerow([tx_result[0], tx_result[1]])
+
+
+def get_currencies() -> List[CurrencyDictionary]:
+    query = (
+        db.session.query(
+            WorldBossRewardAmount.ticker, WorldBossRewardAmount.decimal_places
+        )
+        .distinct(WorldBossRewardAmount.ticker, WorldBossRewardAmount.decimal_places)
+        .all()
+    )
+    result: List[CurrencyDictionary] = []
+    for row in query:
+        currency: CurrencyDictionary = {
+            "ticker": row.ticker,
+            "decimalPlaces": row.decimal_places,
+            "minters": None,
+        }
+        result.append(currency)
+    return result

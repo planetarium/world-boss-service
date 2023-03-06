@@ -7,13 +7,14 @@ from pytest_httpx import HTTPXMock
 
 from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import MINER_URLS
+from world_boss.app.kms import MINER_URLS, signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.stubs import (
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
 )
 from world_boss.app.tasks import (
+    check_signer_balance,
     count_users,
     get_ranking_rewards,
     insert_world_boss_rewards,
@@ -21,6 +22,7 @@ from world_boss.app.tasks import (
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
+    upload_balance_result,
     upload_tx_result,
 )
 
@@ -251,3 +253,18 @@ def test_upload_result(
         assert kwargs["channels"] == "channel_id"
         assert kwargs["title"] == "world_boss_tx_result"
         assert "world_boss_tx_result" in kwargs["filename"]
+
+
+def test_check_signer_balance(celery_session_worker):
+    currency = {"ticker": "CRYSTAL", "decimalPlaces": 18, "minters": None}
+    result = check_signer_balance.delay(MINER_URLS[NetworkType.MAIN], currency).get(
+        timeout=10
+    )
+    assert result == "0 CRYSTAL"
+
+
+def test_upload_balance_result(celery_session_worker):
+    with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
+        upload_balance_result.delay(["0 CRYSTAL", "1 RUNE"], "channel_id").get()
+        msg = f"world boss pool balance.\naddress:{signer.address}\n\n0 CRYSTAL\n1 RUNE"
+        m.assert_called_once_with(channel="channel_id", text=msg)
