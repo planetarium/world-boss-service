@@ -18,11 +18,11 @@ from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
-from world_boss.app.stubs import AmountDictionary, Recipient
+from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
     NetworkType.MAIN: "http://9c-main-miner-3.nine-chronicles.com/graphql",
-    NetworkType.INTERNAL: "http://a778316ca16af4065a02dc2753c1a0fc-1775306312.us-east-2.elb.amazonaws.com/graphql",
+    NetworkType.INTERNAL: "http://9c-internal-miner-1.nine-chronicles.com/graphql",
 }
 
 HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {
@@ -199,6 +199,28 @@ class KmsWorldBossSigner:
             db.session.add(transaction)
             db.session.commit()
             return tx_status
+
+    def query_balance(self, headless_url: str, currency: CurrencyDictionary) -> str:
+        client = self._get_client(headless_url)
+        with client as session:
+            assert client.schema is not None
+            ds = DSLSchema(client.schema)
+            query = dsl_gql(
+                DSLQuery(
+                    ds.StandaloneQuery.stateQuery.select(
+                        ds.StateQuery.balance.args(
+                            address=self.address,
+                            currency={
+                                "ticker": "CRYSTAL",
+                                "decimalPlaces": 18,
+                            },
+                        ).select(ds.FungibleAssetValueWithCurrencyType.quantity)
+                    )
+                )
+            )
+            result = session.execute(query)
+            balance = result["stateQuery"]["balance"]["quantity"]
+            return f'{balance} {currency["ticker"]}'
 
     async def stage_transactions_async(self, network_type: NetworkType):
         headless_urls = HEADLESS_URLS[network_type]

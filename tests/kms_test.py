@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 from typing import List
 
 import bencodex
@@ -6,7 +7,8 @@ import pytest
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
-from world_boss.app.models import Transaction
+from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
+from world_boss.app.raid import get_currencies
 from world_boss.app.stubs import AmountDictionary, Recipient
 
 
@@ -104,3 +106,32 @@ def test_query_transaction_result(fx_session, fx_mainnet_transactions):
     signer.query_transaction_result(url, tx.tx_id)
     transaction = fx_session.query(Transaction).one()
     assert transaction.tx_result == "SUCCESS"
+
+
+def test_query_balance(fx_session):
+    url = MINER_URLS[NetworkType.MAIN]
+    reward = WorldBossReward()
+    reward.avatar_address = "avatar_address"
+    reward.agent_address = "agent_address"
+    reward.raid_id = 1
+    reward.ranking = 1
+    i = 1
+    for ticker, decimal_places in [("CRYSTAL", 18), ("RUNE_FENRIR1", 0)]:
+        transaction = Transaction()
+        transaction.tx_id = str(i)
+        transaction.signer = "signer"
+        transaction.payload = f"10 {ticker}"
+        transaction.nonce = i
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = Decimal("10")
+        reward_amount.ticker = ticker
+        reward_amount.decimal_places = decimal_places
+        reward_amount.reward = reward
+        reward_amount.transaction = transaction
+        fx_session.add(reward_amount)
+        i += 1
+    fx_session.commit()
+    currencies = get_currencies()
+    for currency in currencies:
+        balance = signer.query_balance(url, currency)
+        assert balance == f'0 {currency["ticker"]}'

@@ -10,6 +10,7 @@ from pytest_redis import factories  # type: ignore
 from world_boss.app.config import config
 from world_boss.app.models import Transaction
 from world_boss.app.stubs import RewardDictionary
+from world_boss.app.tasks import celery
 from world_boss.wsgi import create_app
 
 redis_proc = factories.redis_proc(port=6379)
@@ -70,6 +71,16 @@ def celery_config(fx_app: Flask, redis_proc):
     }
     conf.update(fx_app.config)
     return conf
+
+
+@pytest.fixture(scope="session")
+def celery_parameters(fx_app):
+    class TestTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with fx_app.app_context():
+                return self.run(*args, **kwargs)
+
+    return {"task_cls": TestTask}
 
 
 @pytest.fixture()

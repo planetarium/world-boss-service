@@ -3,16 +3,22 @@ from io import StringIO
 from typing import cast
 
 from celery import chord
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, make_response, request
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction
 from world_boss.app.orm import db
-from world_boss.app.raid import get_next_tx_nonce, get_raid_rewards, row_to_recipient
+from world_boss.app.raid import (
+    get_currencies,
+    get_next_tx_nonce,
+    get_raid_rewards,
+    row_to_recipient,
+)
 from world_boss.app.slack import client, slack_auth
 from world_boss.app.stubs import Recipient
 from world_boss.app.tasks import (
+    check_signer_balance,
     count_users,
     get_ranking_rewards,
     insert_world_boss_rewards,
@@ -20,6 +26,7 @@ from world_boss.app.tasks import (
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
+    upload_balance_result,
     upload_prepare_reward_assets,
     upload_tx_result,
 )
@@ -28,8 +35,12 @@ api = Blueprint("api", __name__)
 
 
 @api.route("/ping")
-def pong() -> str:
-    return "pong"
+def pong() -> Response:
+    try:
+        db.session.execute("select 1")
+        return jsonify(message="pong")
+    except Exception:
+        return make_response(jsonify(message="database connection failed"), 503)
 
 
 @api.route("/raid/<raid_id>/<avatar_address>/rewards", methods=["GET"])
@@ -153,5 +164,17 @@ def transaction_result():
     url = MINER_URLS[network_type]
     task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
         upload_tx_result.s(channel_id)
+    )
+    return jsonify({"task_id": task.id})
+
+
+@api.post("/balance")
+@slack_auth
+def check_balance():
+    channel_id = request.values.get("channel_id")
+    currencies = get_currencies()
+    url = MINER_URLS[NetworkType.MAIN]
+    task = chord(check_signer_balance.s(url, currency) for currency in currencies)(
+        upload_balance_result.s(channel_id)
     )
     return jsonify({"task_id": task.id})
