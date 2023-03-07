@@ -32,14 +32,18 @@ def make_celery(flask_app):
     celery.conf.update(flask_app.config)
     celery.conf.timezone = "UTC"
 
-    class BaseTaskWithRetry(celery.Task):
+    class FlaskTaskWithRetry(celery.Task):
         autoretry_for = (OperationalError,)
         max_retries = 3
         retry_backoff = True
         retry_backoff_max = 180
         retry_jitter = True
 
-    celery.Task = BaseTaskWithRetry
+        def __call__(self, *args, **kwargs):
+            with flask_app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = FlaskTaskWithRetry
     return celery
 
 
