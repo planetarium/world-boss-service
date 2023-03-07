@@ -3,7 +3,7 @@ from io import StringIO
 from typing import cast
 
 from celery import chord
-from flask import Blueprint, Response, abort, jsonify, request
+from flask import Blueprint, Response, jsonify, make_response, request
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
@@ -40,7 +40,7 @@ def pong() -> Response:
         db.session.execute("select 1")
         return jsonify(message="pong")
     except Exception:
-        abort(503)
+        return make_response(jsonify(message="database connection failed"), 503)
 
 
 @api.route("/raid/<raid_id>/<avatar_address>/rewards", methods=["GET"])

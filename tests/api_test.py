@@ -462,3 +462,14 @@ def test_ping(fx_test_client: FlaskClient):
     req = fx_test_client.get("/ping")
     assert req.status_code == 200
     assert req.json == {"message": "pong"}
+
+    mocked_session = MagicMock()
+    mocked_session.side_effect = TimeoutError()
+
+    with unittest.mock.patch(
+        "world_boss.app.api.db.session.execute", side_effect=mocked_session
+    ) as m:
+        req = fx_test_client.get("/ping")
+        m.assert_called_once()
+        assert req.status_code == 503
+        assert req.json == {"message": "database connection failed"}
