@@ -216,7 +216,7 @@ def get_currencies() -> List[CurrencyDictionary]:
         currency: CurrencyDictionary = {
             "ticker": row.ticker,
             "decimalPlaces": row.decimal_places,
-            "minters": None,
+            "minters": [],
         }
         result.append(currency)
     return result

@@ -255,12 +255,15 @@ def test_upload_result(
         assert "world_boss_tx_result" in kwargs["filename"]
 
 
-def test_check_signer_balance(celery_session_worker):
-    currency = {"ticker": "CRYSTAL", "decimalPlaces": 18, "minters": None}
+@pytest.mark.parametrize(
+    "ticker, decimal_places", [("CRYSTAL", 18), ("RUNESTONE_FENRIR1", 0)]
+)
+def test_check_signer_balance(celery_session_worker, ticker: str, decimal_places: int):
+    currency = {"ticker": ticker, "decimalPlaces": decimal_places, "minters": []}
     result = check_signer_balance.delay(MINER_URLS[NetworkType.MAIN], currency).get(
         timeout=10
     )
-    assert result == "0 CRYSTAL"
+    assert result == f"0 {ticker}"
 
 
 def test_upload_balance_result(celery_session_worker):

@@ -210,17 +210,20 @@ class KmsWorldBossSigner:
                     ds.StandaloneQuery.stateQuery.select(
                         ds.StateQuery.balance.args(
                             address=self.address,
-                            currency={
-                                "ticker": "CRYSTAL",
-                                "decimalPlaces": 18,
-                            },
-                        ).select(ds.FungibleAssetValueWithCurrencyType.quantity)
+                            currency=currency,
+                        ).select(
+                            ds.FungibleAssetValueWithCurrencyType.quantity,
+                            ds.FungibleAssetValueWithCurrencyType.currency.select(
+                                ds.CurrencyType.ticker
+                            ),
+                        )
                     )
                 )
             )
             result = session.execute(query)
             balance = result["stateQuery"]["balance"]["quantity"]
-            return f'{balance} {currency["ticker"]}'
+            ticker = result["stateQuery"]["balance"]["currency"]["ticker"]
+            return f"{balance} {ticker}"
 
     async def stage_transactions_async(self, network_type: NetworkType):
         headless_urls = HEADLESS_URLS[network_type]
