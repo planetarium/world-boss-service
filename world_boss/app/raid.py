@@ -55,7 +55,7 @@ def update_agent_address(
         cached_value = get_from_cache(cache_key)
         return json.loads(cached_value)
     else:
-        http_client = httpx.Client(timeout=30)
+        http_client = httpx.Client(timeout=None)
         rewards: List[RankingRewardWithAgentDictionary] = []
         query_keys = [r["raider"]["address"] for r in results]
         alias_key_format = "arg{}"
