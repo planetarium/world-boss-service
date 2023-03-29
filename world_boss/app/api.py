@@ -14,6 +14,7 @@ from world_boss.app.raid import (
     get_currencies,
     get_next_tx_nonce,
     get_raid_rewards,
+    list_tx_nonce,
     row_to_recipient,
 )
 from world_boss.app.slack import client, slack_auth
@@ -87,6 +88,7 @@ def prepare_transfer_assets() -> Response:
     # nonce : recipients for transfer_assets tx
     recipient_map: dict[int, list[Recipient]] = {}
     max_nonce = get_next_tx_nonce() - 1
+    exist_nonce = list_tx_nonce()
     rows = [row for row in reader]
     # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
     for row in rows:
@@ -106,7 +108,13 @@ def prepare_transfer_assets() -> Response:
     url = MINER_URLS[NetworkType.MAIN]
     task = chord(
         sign_transfer_assets.s(
-            time_stamp, int(nonce), recipient_map[nonce], memo, url, max_nonce
+            time_stamp,
+            int(nonce),
+            recipient_map[nonce],
+            memo,
+            url,
+            max_nonce,
+            exist_nonce,
         )
         for nonce in recipient_map
     )(insert_world_boss_rewards.si(rows))

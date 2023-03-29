@@ -125,18 +125,32 @@ def test_get_ranking_rewards(
 
 
 @pytest.mark.parametrize(
-    "nonce, max_nonce, expected_count", [(1, 1, 0), (1, 2, 0), (2, 1, 1)]
+    "nonce, max_nonce, nonce_list, expected_count",
+    [
+        (1, 0, [], 1),
+        (1, 1, [1], 0),
+        (1, 2, [1, 2], 0),
+        (2, 1, [1], 1),
+        (2, 3, [1, 3], 1),
+    ],
 )
 def test_sign_transfer_assets(
     celery_session_worker,
     fx_session,
     nonce: int,
     max_nonce: int,
+    nonce_list: List[int],
     expected_count: int,
 ):
     assert fx_session.query(Transaction).count() == 0
     sign_transfer_assets.delay(
-        "2022-12-31", nonce, [], "memo", MINER_URLS[NetworkType.INTERNAL], max_nonce
+        "2022-12-31",
+        nonce,
+        [],
+        "memo",
+        MINER_URLS[NetworkType.INTERNAL],
+        max_nonce,
+        nonce_list,
     ).get(timeout=10)
     assert fx_session.query(Transaction).count() == expected_count
 

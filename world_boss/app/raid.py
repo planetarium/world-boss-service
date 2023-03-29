@@ -172,6 +172,15 @@ def get_next_tx_nonce() -> int:
     return nonce + 1
 
 
+def list_tx_nonce() -> List[int]:
+    return [
+        n
+        for (n,) in db.session.query(Transaction.nonce).filter_by(
+            signer="0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        )
+    ]
+
+
 def get_assets(raid_id: int) -> List[AmountDictionary]:
     query = (
         db.session.query(
