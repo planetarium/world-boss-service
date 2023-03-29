@@ -2,6 +2,7 @@ import csv
 from io import StringIO
 from typing import cast
 
+import httpx
 from celery import chord
 from flask import Blueprint, Response, jsonify, make_response, request
 
@@ -74,7 +75,10 @@ def prepare_transfer_assets() -> Response:
     file_id = link.split("/")[5]
     res = client.files_info(file=file_id)
     data = cast(dict, res.data)
-    content = data["content"]
+    file = data["file"]
+    content = httpx.get(
+        file["url_private"], headers={"Authorization": "Bearer %s" % client.token}
+    ).content.decode()
     stream = StringIO(content)
     has_header = csv.Sniffer().has_header(content)
     reader = csv.reader(stream)
