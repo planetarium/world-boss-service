@@ -55,7 +55,7 @@ def update_agent_address(
         cached_value = get_from_cache(cache_key)
         return json.loads(cached_value)
     else:
-        http_client = httpx.Client(timeout=30)
+        http_client = httpx.Client(timeout=None)
         rewards: List[RankingRewardWithAgentDictionary] = []
         query_keys = [r["raider"]["address"] for r in results]
         alias_key_format = "arg{}"
@@ -170,6 +170,15 @@ def get_next_tx_nonce() -> int:
     if nonce is None:
         return 1
     return nonce + 1
+
+
+def list_tx_nonce() -> List[int]:
+    return [
+        n
+        for (n,) in db.session.query(Transaction.nonce).filter_by(
+            signer="0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        )
+    ]
 
 
 def get_assets(raid_id: int) -> List[AmountDictionary]:

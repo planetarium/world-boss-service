@@ -71,8 +71,9 @@ def sign_transfer_assets(
     memo: str,
     url: str,
     max_nonce: int,
+    exist_nonce: List[int],
 ):
-    if nonce > max_nonce:
+    if nonce > max_nonce or nonce not in exist_nonce:
         time_stamp = datetime.fromisoformat(time_string)
         signer.transfer_assets(time_stamp, nonce, recipients, memo, url)
 

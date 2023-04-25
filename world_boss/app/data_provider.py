@@ -37,7 +37,7 @@ RANKING_REWARDS_QUERY = """
 
 class DataProviderClient:
     def __init__(self):
-        self._client = httpx.Client()
+        self._client = httpx.Client(timeout=None)
 
     def _query(self, network_type: NetworkType, query: str, variables: dict):
         result = self._client.post(

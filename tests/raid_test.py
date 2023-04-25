@@ -8,6 +8,7 @@ from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardA
 from world_boss.app.raid import (
     get_assets,
     get_next_tx_nonce,
+    list_tx_nonce,
     update_agent_address,
     write_ranking_rewards_csv,
     write_tx_result_csv,
@@ -193,3 +194,25 @@ def test_write_tx_result_csv(tmp_path):
         # check first and last row
         for key, (tx_id, result) in enumerate(results):
             assert rows[key + 1] == f"{tx_id},{result}\n"
+
+
+@pytest.mark.parametrize(
+    "nonce_list",
+    [
+        ([]),
+        ([1, 2]),
+        ([2, 3]),
+        ([1, 4]),
+        ([5]),
+    ],
+)
+def test_list_tx_nonce(fx_session, nonce_list: List[int]):
+    for nonce in nonce_list:
+        tx = Transaction()
+        tx.nonce = nonce
+        tx.tx_id = str(nonce)
+        tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+        tx.payload = "payload"
+        fx_session.add(tx)
+    fx_session.flush()
+    assert list_tx_nonce() == nonce_list

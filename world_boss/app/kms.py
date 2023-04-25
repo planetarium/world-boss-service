@@ -21,7 +21,7 @@ from world_boss.app.orm import db
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
-    NetworkType.MAIN: "http://9c-main-miner-3.nine-chronicles.com/graphql",
+    NetworkType.MAIN: "http://9c-main-validator-1.nine-chronicles.com/graphql",
     NetworkType.INTERNAL: "http://9c-internal-miner-1.nine-chronicles.com/graphql",
 }
 
