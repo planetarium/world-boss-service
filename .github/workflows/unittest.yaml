@@ -26,6 +26,7 @@ jobs:
         uses: Daniel-Marynicz/postgresql-action@master
         with:
           postgres_image_tag: 12-alpine
+          postgres_db: test
           postgres_password: ${{ secrets.DB_PASS }}
       - name: actions-setup-redis
         uses: shogo82148/actions-setup-redis@v1.19.0
