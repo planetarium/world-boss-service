@@ -10,7 +10,7 @@ from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardA
 
 @pytest.fixture()
 def non_mocked_hosts() -> list:
-    return ["9c-main-miner-3.nine-chronicles.com"]
+    return ["9c-main-full-state.nine-chronicles.com"]
 
 
 @pytest.mark.parametrize("has_header", [True, False])
