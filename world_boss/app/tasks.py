@@ -5,7 +5,7 @@ from typing import List, Tuple
 import bencodex
 from celery import Celery
 
-from world_boss.app.data_provider import data_provider_client
+from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS, signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
@@ -44,9 +44,16 @@ def get_ranking_rewards(
     size = 100
     results: List[RankingRewardWithAgentDictionary] = []
     while len(results) < total_count:
-        result = data_provider_client.get_ranking_rewards(
-            raid_id, NetworkType.MAIN, offset, size
-        )
+        try:
+            result = data_provider_client.get_ranking_rewards(
+                raid_id, NetworkType.MAIN, offset, size
+            )
+        except Exception as e:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=f"failed to get rewards from {DATA_PROVIDER_URLS[NetworkType.MAIN]} exc: {e}",
+            )
+            raise e
         rewards = update_agent_address(result, raid_id, NetworkType.MAIN, offset, size)
         results.extend(reward for reward in rewards if reward not in results)
         offset = len(results)
