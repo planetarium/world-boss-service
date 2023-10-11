@@ -124,6 +124,38 @@ def test_get_ranking_rewards(
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_1")
 
 
+def test_get_ranking_rewards_error(
+    redisdb,
+    celery_session_worker,
+    httpx_mock: HTTPXMock,
+    fx_ranking_rewards,
+):
+    raid_id = 20
+    network_type = NetworkType.MAIN
+    offset = 0
+
+    httpx_mock.add_response(
+        method="POST",
+        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        json={
+            "errors": [{"message": "can't receive"}],
+            "data": {"worldBossRankingRewards": None},
+        },
+    )
+
+    with unittest.mock.patch(
+        "world_boss.app.tasks.client.chat_postMessage"
+    ) as m, pytest.raises(Exception):
+        get_ranking_rewards.delay("channel_id", raid_id, 101, 1).get(timeout=10)
+        m.assert_called_once()
+        kwargs = m.call_args.kwargs
+        assert (
+            kwargs["text"]
+            == "failed to get rewards from https://api.9c.gg/graphql exc: can't receive"
+        )
+        assert kwargs["channel"] == "channel_id"
+
+
 @pytest.mark.parametrize(
     "nonce, max_nonce, nonce_list, expected_count",
     [

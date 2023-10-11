@@ -22,7 +22,7 @@ from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
     NetworkType.MAIN: "https://9c-main-full-state.nine-chronicles.com/graphql",
-    NetworkType.INTERNAL: "http://9c-internal-miner-1.nine-chronicles.com/graphql",
+    NetworkType.INTERNAL: "http://9c-internal-validator-5.nine-chronicles.com/graphql",
 }
 
 HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {

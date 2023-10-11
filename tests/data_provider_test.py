@@ -2,9 +2,10 @@ import json
 from typing import List
 
 import pytest
+from pytest_httpx import HTTPXMock
 
 from world_boss.app.cache import cache_exists, set_to_cache
-from world_boss.app.data_provider import data_provider_client
+from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.stubs import RankingRewardDictionary
 
@@ -45,3 +46,26 @@ def test_get_ranking_rewards(
     result = data_provider_client.get_ranking_rewards(raid_id, network_type, 0, 1)
     assert result == expected_result
     assert cache_exists(cache_key)
+
+
+def test_get_ranking_rewards_error(
+    redis_proc,
+    fx_app,
+    httpx_mock: HTTPXMock,
+):
+    offset = 0
+    limit = 1
+    raid_id = 99
+    network_type = NetworkType.MAIN
+    cache_key = f"world_boss_{raid_id}_{network_type}_{offset}_{limit}"
+    httpx_mock.add_response(
+        method="POST",
+        url=DATA_PROVIDER_URLS[network_type],
+        json={
+            "errors": [{"message": "can't receive"}],
+            "data": {"worldBossRankingRewards": None},
+        },
+    )
+    with pytest.raises(Exception):
+        data_provider_client.get_ranking_rewards(raid_id, network_type, 0, 1)
+    assert not cache_exists(cache_key)

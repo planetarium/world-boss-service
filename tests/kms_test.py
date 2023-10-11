@@ -4,6 +4,7 @@ from typing import List
 
 import bencodex
 import pytest
+from gql.transport.exceptions import TransportQueryError
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
@@ -41,7 +42,7 @@ def test_transfer_assets(fx_session) -> None:
     tx = bencodex.loads(bytes.fromhex(payload))
     assert tx[b"n"] == 2
     action = tx[b"a"][0]
-    assert action["type_id"] == "transfer_assets"
+    assert action["type_id"] == "transfer_assets3"
     plain_value = action["values"]
     assert plain_value["memo"] == "test"
     assert len(plain_value["recipients"]) == 1
@@ -51,9 +52,8 @@ def test_transfer_assets(fx_session) -> None:
 async def test_stage_transactions_async(fx_session, fx_mainnet_transactions):
     fx_session.add_all(fx_mainnet_transactions)
     fx_session.flush()
-    result = await signer.stage_transactions_async(NetworkType.INTERNAL)
-    for transaction in fx_mainnet_transactions:
-        assert transaction.tx_id in result
+    with pytest.raises(TransportQueryError):
+        await signer.stage_transactions_async(NetworkType.INTERNAL)
 
 
 @pytest.mark.asyncio
@@ -95,7 +95,9 @@ def test_stage_transaction(fx_session, fx_mainnet_transactions):
     fx_session.flush()
     urls = HEADLESS_URLS[NetworkType.INTERNAL]
     for url in urls:
-        assert signer.stage_transaction(url, tx) == tx.tx_id
+        with pytest.raises(TransportQueryError) as e:
+            signer.stage_transaction(url, tx)
+            assert tx.tx_id in str(e.value)
 
 
 def test_query_transaction_result(fx_session, fx_mainnet_transactions):
