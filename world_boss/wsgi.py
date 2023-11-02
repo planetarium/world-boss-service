@@ -1,3 +1,4 @@
+import sentry_sdk
 from flask import Flask
 from sqlalchemy.exc import OperationalError
 
@@ -8,6 +9,11 @@ from world_boss.app.tasks import celery
 
 
 def create_app() -> Flask:
+    sentry_sdk.init(
+        dsn=config.sentry_dsn,
+        enable_tracing=True,
+        traces_sample_rate=config.sentry_sample_rate,
+    )
     flask_app = Flask(__name__)
     flask_app.config["SQLALCHEMY_DATABASE_URI"] = config.database_url
     flask_app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False

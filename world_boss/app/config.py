@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     celery_broker_url: str = f"{default_redis_url}/0"
     celery_result_backend: str = f"{default_redis_url}/1"
     slack_signing_secret: str
+    sentry_dsn: str = ""
+    sentry_sample_rate: float = 0.1
 
     class Config:
         env_file = ".env"
@@ -48,6 +50,10 @@ class Settings(BaseSettings):
                 "env": "CELERY_RESULT_BACKEND",
             },
             "slack_signing_secret": {"env": "SLACK_SIGNING_SECRET"},
+            "sentry_dsn": {
+                "env": "SENTRY_DSN",
+            },
+            "sentry_sample_rate": {"env": "SENTRY_SAMPLE_RATE"},
         }
 
 
