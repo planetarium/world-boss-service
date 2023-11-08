@@ -27,6 +27,11 @@ def create_app() -> Flask:
 
     db.init_app(flask_app)
     migrate.init_app(flask_app, db)
+
+    @flask_app.teardown_request
+    def teardown_request(exc):
+        db.session.remove()
+
     return flask_app
 
 
