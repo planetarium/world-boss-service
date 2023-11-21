@@ -1,15 +1,19 @@
 import csv
+import json
 from io import StringIO
-from typing import cast
+from typing import Annotated, cast
 
 import httpx
 from celery import chord
-from flask import Blueprint, Response, jsonify, make_response, request
+from fastapi import APIRouter, Depends, Form, Request
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction
-from world_boss.app.orm import db
+from world_boss.app.orm import SessionLocal
 from world_boss.app.raid import (
     get_currencies,
     get_next_tx_nonce,
@@ -33,46 +37,63 @@ from world_boss.app.tasks import (
     upload_tx_result,
 )
 
-api = Blueprint("api", __name__)
+api = APIRouter()
 
 
-@api.route("/ping")
-def pong() -> Response:
+def get_db():
+    db = SessionLocal()
     try:
-        db.session.execute("select 1")
-        return jsonify(message="pong")
-    except Exception:
-        return make_response(jsonify(message="database connection failed"), 503)
+        yield db
+    finally:
+        db.close()
 
 
-@api.route("/raid/<raid_id>/<avatar_address>/rewards", methods=["GET"])
-def raid_rewards(raid_id: int, avatar_address: str):
-    return get_raid_rewards(raid_id, avatar_address)
+@api.get("/ping")
+def pong(db: Session = Depends(get_db)) -> JSONResponse:
+    try:
+        db.execute(text("select 1"))
+        status_code = 200
+        message = "pong"
+    except Exception as e:
+        status_code = 503
+        message = "database connection failed"
+    return JSONResponse(json.dumps({"message": message}), status_code)
+
+
+@api.get("/raid/{raid_id}/{avatar_address}/rewards")
+def raid_rewards(raid_id: int, avatar_address: str, db: Session = Depends(get_db)):
+    return get_raid_rewards(raid_id, avatar_address, db)
 
 
 @api.post("/raid/list/count")
 @slack_auth
-def count_total_users():
-    raid_id = request.values.get("text", type=int)
-    channel_id = request.values.get("channel_id")
-    task = count_users.delay(channel_id, raid_id)
-    return jsonify({"task_id": task.id})
+async def count_total_users(
+    request: Request, channel_id: Annotated[str, Form()], text: Annotated[int, Form()]
+):
+    task = count_users.delay(channel_id, text)
+    return json.dumps({"task_id": task.id})
 
 
 @api.post("/raid/rewards/list")
 @slack_auth
-def generate_ranking_rewards_csv():
-    values = request.values.get("text").split()
+async def generate_ranking_rewards_csv(
+    request: Request, text: Annotated[str, Form()], channel_id: Annotated[str, Form()]
+):
+    values = text.split()
     raid_id, total_users, nonce = [int(v) for v in values]
-    channel_id = request.values.get("channel_id")
     task = get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce)
-    return jsonify({"task_id": task.id})
+    return json.dumps({"task_id": task.id})
 
 
 @api.post("/raid/prepare")
 @slack_auth
-def prepare_transfer_assets() -> Response:
-    link, time_stamp = request.values.get("text", "").split()
+async def prepare_transfer_assets(
+    request: Request,
+    text: Annotated[str, Form()],
+    channel_id: Annotated[str, Form()],
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    link, time_stamp = text.split()
     file_id = link.split("/")[5]
     res = client.files_info(file=file_id)
     data = cast(dict, res.data)
@@ -87,8 +108,8 @@ def prepare_transfer_assets() -> Response:
         next(reader, None)
     # nonce : recipients for transfer_assets tx
     recipient_map: dict[int, list[Recipient]] = {}
-    max_nonce = get_next_tx_nonce() - 1
-    exist_nonce = list_tx_nonce()
+    max_nonce = get_next_tx_nonce(db) - 1
+    exist_nonce = list_tx_nonce(db)
     rows = [row for row in reader]
     # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
     for row in rows:
@@ -118,42 +139,46 @@ def prepare_transfer_assets() -> Response:
         )
         for nonce in recipient_map
     )(insert_world_boss_rewards.si(rows))
-    return jsonify({"task_id": task.id})
+    return JSONResponse(json.dumps({"task_id": task.id}))
 
 
-@api.post("/nonce")
+@api.post("/nonce", status_code=200)
 @slack_auth
-def next_tx_nonce():
-    channel_id = request.values.get("channel_id")
-    nonce = get_next_tx_nonce()
+async def next_tx_nonce(
+    request: Request, channel_id: Annotated[str, Form()], db: Session = Depends(get_db)
+):
+    nonce = get_next_tx_nonce(db)
     client.chat_postMessage(
         channel=channel_id,
         text=f"next tx nonce: {nonce}",
     )
-    return jsonify(200)
+    return JSONResponse(200)
 
 
 @api.post("/prepare-reward-assets")
 @slack_auth
-def prepare_reward_assets():
-    channel_id = request.values.get("channel_id")
-    raid_id = request.values.get("text", type=int)
-    task = upload_prepare_reward_assets.delay(channel_id, raid_id)
-    return jsonify({"task_id": task.id})
+async def prepare_reward_assets(
+    request: Request, channel_id: Annotated[str, Form()], text: Annotated[int, Form()]
+):
+    task = upload_prepare_reward_assets.delay(channel_id, text)
+    return json.dumps({"task_id": task.id})
 
 
 @api.post("/stage-transaction")
 @slack_auth
-def stage_transactions():
-    channel_id = request.values.get("channel_id")
-    network = request.values.get("text")
+async def stage_transactions(
+    request: Request,
+    channel_id: Annotated[str, Form()],
+    text: Annotated[str, Form()],
+    db: Session = Depends(get_db),
+):
     nonce_list = (
-        db.session.query(Transaction.nonce)
+        db.query(Transaction.nonce)
         .filter_by(signer=signer.address, tx_result=None)
         .all()
     )
     network_type = NetworkType.INTERNAL
-    if network.lower() == "main":
+    if text.lower() == "main":
         network_type = NetworkType.MAIN
     headless_urls = HEADLESS_URLS[network_type]
     task = chord(
@@ -161,32 +186,32 @@ def stage_transactions():
         for headless_url in headless_urls
         for nonce, in nonce_list
     )(send_slack_message.si(channel_id, f"stage {len(nonce_list)} transactions"))
-    return jsonify({"task_id": task.id})
+    return json.dumps({"task_id": task.id})
 
 
 @api.post("/transaction-result")
 @slack_auth
-def transaction_result():
-    channel_id = request.values.get("channel_id")
-    network = request.values.get("text")
-    tx_ids = db.session.query(Transaction.tx_id).filter_by(tx_result=None)
-    network_type = NetworkType.INTERNAL
-    if network.lower() == "main":
-        network_type = NetworkType.MAIN
-    url = MINER_URLS[network_type]
+async def transaction_result(
+    request: Request,
+    channel_id: Annotated[str, Form()],
+    db: Session = Depends(get_db),
+):
+    tx_ids = db.query(Transaction.tx_id).filter_by(tx_result=None)
+    url = MINER_URLS[NetworkType.MAIN]
     task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
         upload_tx_result.s(channel_id)
     )
-    return jsonify({"task_id": task.id})
+    return json.dumps({"task_id": task.id})
 
 
 @api.post("/balance")
 @slack_auth
-def check_balance():
-    channel_id = request.values.get("channel_id")
-    currencies = get_currencies()
+async def check_balance(
+    request: Request, channel_id: Annotated[str, Form()], db: Session = Depends(get_db)
+):
+    currencies = get_currencies(db)
     url = MINER_URLS[NetworkType.MAIN]
     task = chord(check_signer_balance.s(url, currency) for currency in currencies)(
         upload_balance_result.s(channel_id)
     )
-    return jsonify({"task_id": task.id})
+    return json.dumps({"task_id": task.id})

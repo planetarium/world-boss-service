@@ -3,14 +3,15 @@ import json
 from typing import List, Tuple, cast
 
 import httpx
-from flask import jsonify
+from fastapi import HTTPException
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 
 from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
-from world_boss.app.orm import db
 from world_boss.app.stubs import (
     AmountDictionary,
     CurrencyDictionary,
@@ -23,24 +24,31 @@ from world_boss.app.stubs import (
 )
 
 
-def get_raid_rewards(raid_id: int, avatar_address: str):
+def get_raid_rewards(raid_id: int, avatar_address: str, db: Session):
     avatar_address = avatar_address.replace("0x", "")
 
     cache_key = f"raid_rewards_{avatar_address}_{raid_id}_json"
     if cache_exists(cache_key):
         cached_value = get_from_cache(cache_key)
         cached_result = json.loads(cached_value)
-        resp = jsonify(cached_result)
+        resp = JSONResponse(json.dumps(cached_result))
         resp.headers["X-world-boss-service-response-cached"] = cache_key
         return resp
 
-    reward = WorldBossReward.query.filter_by(
-        raid_id=raid_id,
-        avatar_address=avatar_address,
-    ).first_or_404()
+    reward = (
+        db.query(WorldBossReward)
+        .filter_by(
+            raid_id=raid_id,
+            avatar_address=avatar_address,
+        )
+        .first()
+    )
+    if reward is None:
+        raise HTTPException(status_code=404, detail="WorldBossReward not found")
     result = reward.as_dict()
-    set_to_cache(cache_key, json.dumps(result))
-    return jsonify(result)
+    serialized = json.dumps(result)
+    set_to_cache(cache_key, serialized)
+    return serialized
 
 
 def update_agent_address(
@@ -161,9 +169,9 @@ def row_to_recipient(row: RecipientRow) -> Recipient:
     }
 
 
-def get_next_tx_nonce() -> int:
+def get_next_tx_nonce(db: Session) -> int:
     nonce = (
-        db.session.query(func.max(Transaction.nonce))
+        db.query(func.max(Transaction.nonce))
         .filter_by(signer="0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD")
         .scalar()
     )
@@ -172,18 +180,18 @@ def get_next_tx_nonce() -> int:
     return nonce + 1
 
 
-def list_tx_nonce() -> List[int]:
+def list_tx_nonce(db: Session) -> List[int]:
     return [
         n
-        for (n,) in db.session.query(Transaction.nonce).filter_by(
+        for (n,) in db.query(Transaction.nonce).filter_by(
             signer="0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
         )
     ]
 
 
-def get_assets(raid_id: int) -> List[AmountDictionary]:
+def get_assets(raid_id: int, db: Session) -> List[AmountDictionary]:
     query = (
-        db.session.query(
+        db.query(
             func.sum(WorldBossRewardAmount.amount),
             WorldBossRewardAmount.ticker,
             WorldBossRewardAmount.decimal_places,
@@ -216,8 +224,8 @@ def write_tx_result_csv(file_name: str, tx_results: List[Tuple[str, str]]):
             writer.writerow([tx_result[0], tx_result[1]])
 
 
-def get_currencies() -> List[CurrencyDictionary]:
-    query = db.session.query(
+def get_currencies(db: Session) -> List[CurrencyDictionary]:
+    query = db.query(
         WorldBossRewardAmount.ticker, WorldBossRewardAmount.decimal_places
     ).distinct(WorldBossRewardAmount.ticker, WorldBossRewardAmount.decimal_places)
     result: List[CurrencyDictionary] = []

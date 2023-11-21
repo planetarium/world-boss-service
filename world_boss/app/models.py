@@ -1,26 +1,35 @@
 from datetime import datetime
 
-from world_boss.app.orm import db
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
+
+from world_boss.app.orm import Base
 
 
-class WorldBossRewardAmount(db.Model):  # type: ignore
-    __table_name__ = "world_boss_reward_amount"
+class WorldBossRewardAmount(Base):
+    __tablename__ = "world_boss_reward_amount"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    amount = db.Column(db.Numeric, nullable=False)
-    ticker = db.Column(db.String, nullable=False)
-    decimal_places = db.Column(db.Integer, nullable=False)
-    tx_id = db.Column(db.String, db.ForeignKey("transaction.tx_id"), nullable=False)
-    transaction = db.relationship(
-        "Transaction", backref=db.backref("amounts", lazy=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    amount: Mapped[int] = mapped_column(Numeric, nullable=False)
+    ticker: Mapped[str] = mapped_column(String, nullable=False)
+    decimal_places: Mapped[int] = mapped_column(Integer, nullable=False)
+    tx_id: Mapped[str] = mapped_column(
+        String, ForeignKey("transaction.tx_id"), nullable=False
     )
-    reward_id = db.Column(
-        db.Integer, db.ForeignKey("world_boss_reward.id"), nullable=False
+    transaction = relationship("Transaction", backref=backref("amounts", lazy=True))
+    reward_id = Column(Integer, ForeignKey("world_boss_reward.id"), nullable=False)
+    reward = relationship("WorldBossReward", backref=backref("amounts", lazy=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
     )
-    reward = db.relationship(
-        "WorldBossReward", backref=db.backref("amounts", lazy=True)
-    )
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     def as_dict(self) -> dict:
         return {
@@ -32,20 +41,22 @@ class WorldBossRewardAmount(db.Model):  # type: ignore
         }
 
 
-class WorldBossReward(db.Model):  # type: ignore
-    __table_name__ = "world_boss_reward"
+class WorldBossReward(Base):
+    __tablename__ = "world_boss_reward"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    raid_id = db.Column(db.Integer, nullable=False, index=True)
-    avatar_address = db.Column(db.String, nullable=False, index=True)
-    agent_address = db.Column(db.String, nullable=False, index=True)
-    ranking = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    # amounts = db.relationship('WorldBossRewardAmount', back_populates='reward')
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    raid_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    avatar_address: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    agent_address: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    ranking: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
+    # amounts = relationship('WorldBossRewardAmount', back_populates='reward')
 
     __table_args__ = (
-        db.UniqueConstraint(raid_id, avatar_address, agent_address),
-        db.UniqueConstraint(raid_id, ranking),
+        UniqueConstraint(raid_id, avatar_address, agent_address),
+        UniqueConstraint(raid_id, ranking),
     )
 
     def as_dict(self) -> dict:
@@ -58,14 +69,16 @@ class WorldBossReward(db.Model):  # type: ignore
         }
 
 
-class Transaction(db.Model):  # type: ignore
-    __table_name__ = "transaction"
+class Transaction(Base):
+    __tablename__ = "transaction"
 
-    tx_id = db.Column(db.String, primary_key=True)
-    tx_result = db.Column(db.String, nullable=True)
-    payload = db.Column(db.String, nullable=False)
-    signer = db.Column(db.String, nullable=False, index=True)
-    nonce = db.Column(db.Integer, nullable=False)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    tx_id: Mapped[str] = mapped_column(String, primary_key=True)
+    tx_result: Mapped[str] = mapped_column(String, nullable=True)
+    payload: Mapped[str] = mapped_column(String, nullable=False)
+    signer: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    nonce: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow
+    )
 
-    __table_args__ = (db.UniqueConstraint(signer, nonce),)
+    __table_args__ = (UniqueConstraint(signer, nonce),)

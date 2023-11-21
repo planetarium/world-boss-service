@@ -1,5 +1,11 @@
-from flask_migrate import Migrate
-from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import create_engine
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-db = SQLAlchemy()
-migrate = Migrate()
+from world_boss.app.config import config
+
+SQLALCHEMY_DATABASE_URL = str(config.database_url)
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()

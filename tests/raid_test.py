@@ -131,7 +131,7 @@ def test_get_next_tx_nonce(fx_session, nonce_list: List[int], expected: int):
         tx.payload = "payload"
         fx_session.add(tx)
     fx_session.flush()
-    assert get_next_tx_nonce() == expected
+    assert get_next_tx_nonce(fx_session) == expected
 
 
 @pytest.mark.parametrize("tx_exist", [True, False])
@@ -144,7 +144,7 @@ def test_get_next_tx_nonce_tx_empty(fx_session, tx_exist: bool):
         tx.payload = "payload"
         fx_session.add(tx)
         fx_session.flush()
-    assert get_next_tx_nonce() == 1
+    assert get_next_tx_nonce(fx_session) == 1
 
 
 def test_get_assets(fx_session) -> None:
@@ -176,7 +176,7 @@ def test_get_assets(fx_session) -> None:
     fx_session.commit()
     for i, asset in enumerate(assets):
         raid_id = i + 1
-        assert get_assets(raid_id) == [assets[i]]
+        assert get_assets(raid_id, fx_session) == [assets[i]]
 
 
 def test_write_tx_result_csv(tmp_path):
@@ -215,4 +215,4 @@ def test_list_tx_nonce(fx_session, nonce_list: List[int]):
         tx.payload = "payload"
         fx_session.add(tx)
     fx_session.flush()
-    assert list_tx_nonce() == nonce_list
+    assert list_tx_nonce(fx_session) == nonce_list

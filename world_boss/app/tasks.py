@@ -4,12 +4,14 @@ from typing import List, Tuple
 
 import bencodex
 from celery import Celery
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from world_boss.app.config import config
 from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS, signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
-from world_boss.app.orm import db
 from world_boss.app.raid import (
     get_assets,
     update_agent_address,
@@ -25,6 +27,12 @@ from world_boss.app.stubs import (
 )
 
 celery = Celery()
+celery.conf.broker_url = config.celery_broker_url
+celery.conf.result_backend = config.celery_result_backend
+celery.conf.timezone = "UTC"
+
+task_engine = create_engine(str(config.database_url))
+TaskSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=task_engine)
 
 
 @celery.task()
@@ -80,17 +88,18 @@ def sign_transfer_assets(
     max_nonce: int,
     exist_nonce: List[int],
 ):
-    if nonce > max_nonce or nonce not in exist_nonce:
-        time_stamp = datetime.fromisoformat(time_string)
-        signer.transfer_assets(time_stamp, nonce, recipients, memo, url)
+    with TaskSessionLocal() as db:
+        if nonce > max_nonce or nonce not in exist_nonce:
+            time_stamp = datetime.fromisoformat(time_string)
+            signer.transfer_assets(time_stamp, nonce, recipients, memo, url, db)
 
 
 @celery.task()
 def insert_world_boss_rewards(rows: List[RecipientRow]):
     # ranking : world_boss_reward
     world_boss_rewards: dict[int, WorldBossReward] = {}
-    with db.session.no_autoflush:  # type: ignore
-        transactions = db.session.query(Transaction).filter_by(signer=signer.address)
+    with TaskSessionLocal() as db, db.no_autoflush:  # type: ignore
+        transactions = db.query(Transaction).filter_by(signer=signer.address)
         # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in rows:
             # parse row
@@ -123,29 +132,32 @@ def insert_world_boss_rewards(rows: List[RecipientRow]):
             world_boss_reward_amount.transaction = transactions.filter_by(
                 nonce=nonce
             ).one()
-        db.session.commit()
+            db.add(world_boss_reward_amount)
+        db.commit()
 
 
 @celery.task()
 def upload_prepare_reward_assets(channel_id: str, raid_id: int):
-    assets = get_assets(raid_id)
-    result = signer.prepare_reward_assets(MINER_URLS[NetworkType.MAIN], assets)
-    decoded = bencodex.loads(bytes.fromhex(result))
-    client.chat_postMessage(
-        channel=channel_id,
-        text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{decoded}\n\n{result}```",
-    )
+    with TaskSessionLocal() as db:
+        assets = get_assets(raid_id, db)
+        result = signer.prepare_reward_assets(MINER_URLS[NetworkType.MAIN], assets)
+        decoded = bencodex.loads(bytes.fromhex(result))
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{decoded}\n\n{result}```",
+        )
 
 
 @celery.task()
 def stage_transaction(headless_url: str, nonce: int) -> str:
-    tx = (
-        db.session.query(Transaction)
-        .filter_by(signer=signer.address, nonce=nonce)
-        .one()
-    )
-    tx_id = signer.stage_transaction(headless_url, tx)
-    return tx_id
+    with TaskSessionLocal() as db:
+        tx = (
+            db.query(Transaction)
+            .filter(Transaction.signer == signer.address, Transaction.nonce == nonce)
+            .one()
+        )
+        tx_id = signer.stage_transaction(headless_url, tx)
+        return tx_id
 
 
 @celery.task()
@@ -155,8 +167,9 @@ def send_slack_message(channel_id: str, msg: str):
 
 @celery.task()
 def query_tx_result(headless_url: str, tx_id: str):
-    tx_result = signer.query_transaction_result(headless_url, tx_id)
-    return tx_id, tx_result
+    with TaskSessionLocal() as db:
+        tx_result = signer.query_transaction_result(headless_url, tx_id, db)
+        return tx_id, tx_result
 
 
 @celery.task()

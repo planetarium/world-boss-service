@@ -13,11 +13,11 @@ from gql.transport.httpx import HTTPXAsyncTransport, HTTPXTransport
 from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
 from pyasn1.type.univ import Integer, SequenceOf  # type: ignore
+from sqlalchemy.orm import Session
 
 from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
-from world_boss.app.orm import db
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
 MINER_URLS: dict[NetworkType, str] = {
@@ -61,7 +61,7 @@ class KmsWorldBossSigner:
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _sign_and_save(
-        self, headless_url: str, unsigned_transaction: bytes, nonce: int
+        self, headless_url: str, unsigned_transaction: bytes, nonce: int, db: Session
     ) -> Transaction:
         account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
         msg_hash = hashlib.sha256(unsigned_transaction).digest()
@@ -77,7 +77,7 @@ class KmsWorldBossSigner:
         signed_transaction = self._sign_transaction(
             headless_url, unsigned_transaction, signature
         )
-        return self._save_transaction(signed_transaction, nonce)
+        return self._save_transaction(signed_transaction, nonce, db)
 
     def _sign_transaction(
         self, headless_url: str, unsigned_transaction: bytes, signature: bytes
@@ -99,15 +99,17 @@ class KmsWorldBossSigner:
             result = session.execute(query)
             return bytes.fromhex(result["transaction"]["signTransaction"])
 
-    def _save_transaction(self, signed_transaction: bytes, nonce) -> Transaction:
+    def _save_transaction(
+        self, signed_transaction: bytes, nonce, db: Session
+    ) -> Transaction:
         transaction = Transaction()
         tx_id = hashlib.sha256(signed_transaction).hexdigest()
         transaction.tx_id = tx_id
         transaction.nonce = nonce
         transaction.signer = self.address
         transaction.payload = signed_transaction.hex()
-        db.session.add(transaction)
-        db.session.commit()
+        db.add(transaction)
+        db.commit()
         return transaction
 
     def transfer_assets(
@@ -117,6 +119,7 @@ class KmsWorldBossSigner:
         recipients: typing.List[Recipient],
         memo: str,
         headless_url: str,
+        db: Session,
     ) -> Transaction:
         client = self._get_client(headless_url)
         with client as session:
@@ -139,7 +142,7 @@ class KmsWorldBossSigner:
             unsigned_transaction = bytes.fromhex(
                 result["actionTxQuery"]["transferAssets"]
             )
-            return self._sign_and_save(headless_url, unsigned_transaction, nonce)
+            return self._sign_and_save(headless_url, unsigned_transaction, nonce, db)
 
     def prepare_reward_assets(
         self, headless_url: str, assets: typing.List[AmountDictionary]
@@ -175,7 +178,9 @@ class KmsWorldBossSigner:
             result = session.execute(query)
             return result["stageTransaction"]
 
-    def query_transaction_result(self, headless_url: str, tx_id: str) -> str:
+    def query_transaction_result(
+        self, headless_url: str, tx_id: str, db: Session
+    ) -> str:
         client = self._get_client(headless_url)
         with client as session:
             assert client.schema is not None
@@ -194,10 +199,10 @@ class KmsWorldBossSigner:
             result = session.execute(query)
             tx_result = result["transaction"]["transactionResult"]
             tx_status = tx_result["txStatus"]
-            transaction = db.session.query(Transaction).filter_by(tx_id=tx_id).one()
+            transaction = db.query(Transaction).filter_by(tx_id=tx_id).one()
             transaction.tx_result = tx_status
-            db.session.add(transaction)
-            db.session.commit()
+            db.add(transaction)
+            db.commit()
             return tx_status
 
     def query_balance(self, headless_url: str, currency: CurrencyDictionary) -> str:
@@ -225,10 +230,10 @@ class KmsWorldBossSigner:
             ticker = result["stateQuery"]["balance"]["currency"]["ticker"]
             return f"{balance} {ticker}"
 
-    async def stage_transactions_async(self, network_type: NetworkType):
+    async def stage_transactions_async(self, network_type: NetworkType, db: Session):
         headless_urls = HEADLESS_URLS[network_type]
-        transactions = Transaction.query.filter_by(tx_result=None).order_by(
-            Transaction.nonce
+        transactions = (
+            db.query(Transaction).filter_by(tx_result=None).order_by(Transaction.nonce)
         )
         result = await asyncio.gather(
             *[
@@ -256,21 +261,23 @@ class KmsWorldBossSigner:
             result = await session.execute(query)
             return result["stageTransaction"]
 
-    async def check_transaction_status_async(self, network_type: NetworkType):
+    async def check_transaction_status_async(
+        self, network_type: NetworkType, db: Session
+    ):
         headless_url = MINER_URLS[network_type]
-        transactions = Transaction.query.filter_by(tx_result=None).order_by(
-            Transaction.nonce
+        transactions = (
+            db.query(Transaction).filter_by(tx_result=None).order_by(Transaction.nonce)
         )
         await asyncio.gather(
             *[
-                self.query_transaction_result_async(headless_url, transaction)
+                self.query_transaction_result_async(headless_url, transaction, db)
                 for transaction in transactions
             ]
         )
-        db.session.commit()
+        db.commit()
 
     async def query_transaction_result_async(
-        self, headless_url: str, transaction: Transaction
+        self, headless_url: str, transaction: Transaction, db: Session
     ):
         client = self._get_async_client(headless_url)
         async with client as session:
@@ -291,7 +298,7 @@ class KmsWorldBossSigner:
             tx_result = result["transaction"]["transactionResult"]
             tx_status = tx_result["txStatus"]
             transaction.tx_result = tx_status
-            db.session.add(transaction)
+            db.add(transaction)
 
 
 signer = KmsWorldBossSigner(config.kms_key_id)

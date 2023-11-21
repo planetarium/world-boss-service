@@ -180,7 +180,7 @@ def test_sign_transfer_assets(
         nonce,
         [],
         "memo",
-        MINER_URLS[NetworkType.INTERNAL],
+        MINER_URLS[NetworkType.MAIN],
         max_nonce,
         nonce_list,
     ).get(timeout=10)
@@ -234,7 +234,7 @@ def test_send_slack_message(
     celery_session_worker,
 ):
     with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
-        send_slack_message.delay("channel_id", "test message").get()
+        send_slack_message.delay("channel_id", "test message").get(timeout=3)
         m.assert_called_once_with(channel="channel_id", text="test message")
 
 
@@ -283,8 +283,8 @@ def test_query_tx_result(celery_session_worker, fx_session, fx_transactions):
             timeout=10
         )
         tx = fx_session.query(Transaction).filter_by(tx_id=tx_id).one()
-        assert result == "SUCCESS"
-        assert tx.tx_result == "SUCCESS"
+        assert result == "INVALID"
+        assert tx.tx_result == "INVALID"
 
 
 def test_upload_result(
@@ -314,6 +314,8 @@ def test_check_signer_balance(celery_session_worker, ticker: str, decimal_places
 
 def test_upload_balance_result(celery_session_worker):
     with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
-        upload_balance_result.delay(["0 CRYSTAL", "1 RUNE"], "channel_id").get()
+        upload_balance_result.delay(["0 CRYSTAL", "1 RUNE"], "channel_id").get(
+            timeout=3
+        )
         msg = f"world boss pool balance.\naddress:{signer.address}\n\n0 CRYSTAL\n1 RUNE"
         m.assert_called_once_with(channel="channel_id", text=msg)

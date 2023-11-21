@@ -2,13 +2,14 @@ import typing
 
 import pytest
 import sqlalchemy as sa
-from flask import Flask
-from flask.testing import FlaskClient
+from fastapi import FastAPI
 from pytest_postgresql.janitor import DatabaseJanitor
 from pytest_redis import factories  # type: ignore
+from starlette.testclient import TestClient
 
 from world_boss.app.config import config
 from world_boss.app.models import Transaction
+from world_boss.app.orm import Base, SessionLocal, engine
 from world_boss.app.stubs import RewardDictionary
 from world_boss.app.tasks import celery
 from world_boss.wsgi import create_app
@@ -36,40 +37,38 @@ def database():
 
 
 @pytest.fixture(scope="session")
-def fx_app(database) -> Flask:
+def fx_app(database) -> FastAPI:
     fx_app = create_app()
-    ctx = fx_app.app_context()
-    ctx.push()
+    fx_app.dependency_overrides["get_db"] = fx_session
     return fx_app
 
 
 @pytest.fixture
-def fx_session(fx_app):
+def fx_session(fx_app) -> typing.Generator:
     """
     Provide the transactional fixtures with access to the database via a Flask-SQLAlchemy
     database connection.
     """
-    fx_db = fx_app.extensions["sqlalchemy"].db
-    fx_db.session.rollback()
-    fx_db.drop_all()
-    fx_db.session.commit()
-    fx_db.create_all()
-    return fx_db.session
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 @pytest.fixture()
-def fx_test_client(fx_app: Flask) -> FlaskClient:
-    fx_app.testing = True
-    return fx_app.test_client()
+def fx_test_client(fx_app: FastAPI) -> TestClient:
+    return TestClient(fx_app)
 
 
 @pytest.fixture(scope="session")
-def celery_config(fx_app: Flask, redis_proc):
+def celery_config(redis_proc):
     conf = {
-        "broker_url": fx_app.config["CELERY_BROKER_URL"],
-        "result_backend": fx_app.config["CELERY_RESULT_BACKEND"],
+        "broker_url": config.celery_broker_url,
+        "result_backend": config.celery_result_backend,
     }
-    conf.update(fx_app.config)
     return conf
 
 
@@ -77,8 +76,7 @@ def celery_config(fx_app: Flask, redis_proc):
 def celery_parameters(fx_app):
     class TestTask(celery.Task):
         def __call__(self, *args, **kwargs):
-            with fx_app.app_context():
-                return self.run(*args, **kwargs)
+            return self.run(*args, **kwargs)
 
     return {"task_cls": TestTask}
 
