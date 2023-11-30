@@ -12,6 +12,7 @@ RUN poetry config virtualenvs.create false
 COPY ./world_boss /app/world_boss
 COPY pyproject.toml /app
 COPY poetry.lock /app
+COPY alembic.ini /app
 
 WORKDIR /app
 RUN poetry install --no-root --no-dev
