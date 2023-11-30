@@ -12,6 +12,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from world_boss.app.orm import Base
+from world_boss.app.schemas import WorldBossRewardAmountSchema, WorldBossRewardSchema
 
 
 class WorldBossRewardAmount(Base):
@@ -40,6 +41,9 @@ class WorldBossRewardAmount(Base):
             "tx_result": self.transaction.tx_result,
         }
 
+    def as_schema(self) -> WorldBossRewardAmountSchema:
+        return WorldBossRewardAmountSchema.parse_obj(self.as_dict())
+
 
 class WorldBossReward(Base):
     __tablename__ = "world_boss_reward"
@@ -67,6 +71,9 @@ class WorldBossReward(Base):
             "ranking": self.ranking,
             "rewards": [r.as_dict() for r in self.amounts],
         }
+
+    def as_schema(self) -> WorldBossRewardSchema:
+        return WorldBossRewardSchema.parse_obj(self.as_dict())
 
 
 class Transaction(Base):

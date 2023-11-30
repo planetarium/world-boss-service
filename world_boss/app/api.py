@@ -1,5 +1,4 @@
 import csv
-import json
 from io import StringIO
 from typing import Annotated, cast
 
@@ -8,7 +7,7 @@ from celery import chord
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
@@ -21,6 +20,7 @@ from world_boss.app.raid import (
     list_tx_nonce,
     row_to_recipient,
 )
+from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.slack import client, slack_auth
 from world_boss.app.stubs import Recipient
 from world_boss.app.tasks import (
@@ -57,12 +57,17 @@ def pong(db: Session = Depends(get_db)) -> JSONResponse:
     except Exception as e:
         status_code = 503
         message = "database connection failed"
-    return JSONResponse(json.dumps({"message": message}), status_code)
+    return JSONResponse(message, status_code)
 
 
 @api.get("/raid/{raid_id}/{avatar_address}/rewards")
-def raid_rewards(raid_id: int, avatar_address: str, db: Session = Depends(get_db)):
-    return get_raid_rewards(raid_id, avatar_address, db)
+def raid_rewards(
+    response: Response,
+    raid_id: int,
+    avatar_address: str,
+    db: Session = Depends(get_db),
+) -> WorldBossRewardSchema:
+    return get_raid_rewards(raid_id, avatar_address, db, response)
 
 
 @api.post("/raid/list/count")
@@ -71,7 +76,7 @@ async def count_total_users(
     request: Request, channel_id: Annotated[str, Form()], text: Annotated[int, Form()]
 ):
     task = count_users.delay(channel_id, text)
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)
 
 
 @api.post("/raid/rewards/list")
@@ -82,7 +87,7 @@ async def generate_ranking_rewards_csv(
     values = text.split()
     raid_id, total_users, nonce = [int(v) for v in values]
     task = get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce)
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)
 
 
 @api.post("/raid/prepare")
@@ -139,7 +144,7 @@ async def prepare_transfer_assets(
         )
         for nonce in recipient_map
     )(insert_world_boss_rewards.si(rows))
-    return JSONResponse(json.dumps({"task_id": task.id}))
+    return JSONResponse(task.id)
 
 
 @api.post("/nonce", status_code=200)
@@ -161,7 +166,7 @@ async def prepare_reward_assets(
     request: Request, channel_id: Annotated[str, Form()], text: Annotated[int, Form()]
 ):
     task = upload_prepare_reward_assets.delay(channel_id, text)
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)
 
 
 @api.post("/stage-transaction")
@@ -186,7 +191,7 @@ async def stage_transactions(
         for headless_url in headless_urls
         for nonce, in nonce_list
     )(send_slack_message.si(channel_id, f"stage {len(nonce_list)} transactions"))
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)
 
 
 @api.post("/transaction-result")
@@ -201,7 +206,7 @@ async def transaction_result(
     task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
         upload_tx_result.s(channel_id)
     )
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)
 
 
 @api.post("/balance")
@@ -214,4 +219,4 @@ async def check_balance(
     task = chord(check_signer_balance.s(url, currency) for currency in currencies)(
         upload_balance_result.s(channel_id)
     )
-    return json.dumps({"task_id": task.id})
+    return JSONResponse(task.id)

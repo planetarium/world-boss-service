@@ -4,14 +4,16 @@ from typing import List, Tuple, cast
 
 import httpx
 from fastapi import HTTPException
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from starlette.responses import JSONResponse
+from starlette.responses import Response
 
 from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
+from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.stubs import (
     AmountDictionary,
     CurrencyDictionary,
@@ -24,16 +26,18 @@ from world_boss.app.stubs import (
 )
 
 
-def get_raid_rewards(raid_id: int, avatar_address: str, db: Session):
+def get_raid_rewards(
+    raid_id: int, avatar_address: str, db: Session, response: Response
+) -> WorldBossRewardSchema:
     avatar_address = avatar_address.replace("0x", "")
 
     cache_key = f"raid_rewards_{avatar_address}_{raid_id}_json"
     if cache_exists(cache_key):
         cached_value = get_from_cache(cache_key)
         cached_result = json.loads(cached_value)
-        resp = JSONResponse(json.dumps(cached_result))
-        resp.headers["X-world-boss-service-response-cached"] = cache_key
-        return resp
+        result = WorldBossRewardSchema.parse_obj(cached_result)
+        response.headers["X-world-boss-service-response-cached"] = cache_key
+        return result
 
     reward = (
         db.query(WorldBossReward)
@@ -45,10 +49,10 @@ def get_raid_rewards(raid_id: int, avatar_address: str, db: Session):
     )
     if reward is None:
         raise HTTPException(status_code=404, detail="WorldBossReward not found")
-    result = reward.as_dict()
-    serialized = json.dumps(result)
+    result = reward.as_schema()
+    serialized = json.dumps(jsonable_encoder(result))
     set_to_cache(cache_key, serialized)
-    return serialized
+    return result
 
 
 def update_agent_address(

@@ -1,4 +1,3 @@
-import json
 import unittest
 from unittest.mock import MagicMock
 
@@ -96,7 +95,7 @@ def test_prepare_transfer_assets(
             },
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"

@@ -30,8 +30,8 @@ def test_raid_rewards_404(fx_test_client, redisdb, fx_session):
 @pytest.mark.parametrize(
     "caching",
     [
-        True,
         False,
+        True,
     ],
 )
 def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
@@ -63,7 +63,10 @@ def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
         set_to_cache(cache_key, json.dumps(reward.as_dict()), timedelta(seconds=1))
     req = fx_test_client.get(f"/raid/{raid_id}/{avatar_address}/rewards")
     assert req.status_code == 200
-    assert json.loads(req.json()) == reward.as_dict()
+    assert req.json() == reward.as_dict()
+    assert (
+        req.headers.get("x-world-boss-service-response-cached") is not None
+    ) == caching
     if caching:
         time.sleep(2)
         assert not cache_exists(cache_key)
@@ -86,7 +89,7 @@ def test_count_total_users(
             "/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -136,7 +139,7 @@ def test_generate_ranking_rewards_csv(
             "/raid/rewards/list", data={"text": "1 1 1", "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -210,7 +213,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
             "/prepare-reward-assets", data={"channel_id": "channel_id", "text": "3"}
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -249,7 +252,7 @@ def test_stage_transactions(
             "/stage-transaction", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
@@ -290,7 +293,7 @@ def test_transaction_result(
             "/transaction-result", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -336,7 +339,7 @@ def test_check_balance(fx_session, fx_test_client, celery_session_worker):
     ):
         req = fx_test_client.post("/balance", data={"channel_id": "channel_id"})
         assert req.status_code == 200
-        task_id = json.loads(req.json())["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert m.call_count == 2
@@ -365,7 +368,7 @@ def test_slack_auth(fx_test_client, url: str, text: str):
 def test_ping(fx_test_client: TestClient):
     req = fx_test_client.get("/ping")
     assert req.status_code == 200
-    assert json.loads(req.json()) == {"message": "pong"}
+    assert req.json() == "pong"
 
     mocked_session = MagicMock()
     mocked_session.side_effect = TimeoutError()
@@ -376,4 +379,4 @@ def test_ping(fx_test_client: TestClient):
         req = fx_test_client.get("/ping")
         m.assert_called_once()
         assert req.status_code == 503
-        assert json.loads(req.json()) == {"message": "database connection failed"}
+        assert req.json() == "database connection failed"
