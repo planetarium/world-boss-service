@@ -9,7 +9,8 @@ import ethereum_kms_signer  # type: ignore
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
 from gql import Client
 from gql.dsl import DSLMutation, DSLQuery, DSLSchema, dsl_gql
-from gql.transport.httpx import HTTPXAsyncTransport, HTTPXTransport
+from gql.transport.aiohttp import AIOHTTPTransport
+from gql.transport.requests import RequestsHTTPTransport
 from pyasn1.codec.der.decoder import decode as der_decode  # type: ignore
 from pyasn1.codec.der.encoder import encode as der_encode  # type: ignore
 from pyasn1.type.univ import Integer, SequenceOf  # type: ignore
@@ -53,11 +54,11 @@ class KmsWorldBossSigner:
         return ethereum_kms_signer.get_eth_address(self._key_id)
 
     def _get_client(self, headless_url: str) -> Client:
-        transport = HTTPXTransport(url=headless_url)
+        transport = RequestsHTTPTransport(url=headless_url)
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _get_async_client(self, headless_url: str) -> Client:
-        transport = HTTPXAsyncTransport(url=headless_url)
+        transport = AIOHTTPTransport(url=headless_url)
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _sign_and_save(
