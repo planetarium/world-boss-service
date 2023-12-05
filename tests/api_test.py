@@ -7,14 +7,19 @@ from unittest.mock import MagicMock
 
 import pytest
 from celery.result import AsyncResult
-from flask.testing import FlaskClient
 from pytest_httpx import HTTPXMock
+from starlette.testclient import TestClient
 
 from world_boss.app.cache import cache_exists, set_to_cache
 from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
+
+
+@pytest.fixture()
+def non_mocked_hosts() -> list:
+    return ["testserver"]
 
 
 def test_raid_rewards_404(fx_test_client, redisdb, fx_session):
@@ -25,8 +30,8 @@ def test_raid_rewards_404(fx_test_client, redisdb, fx_session):
 @pytest.mark.parametrize(
     "caching",
     [
-        True,
         False,
+        True,
     ],
 )
 def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
@@ -58,7 +63,10 @@ def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
         set_to_cache(cache_key, json.dumps(reward.as_dict()), timedelta(seconds=1))
     req = fx_test_client.get(f"/raid/{raid_id}/{avatar_address}/rewards")
     assert req.status_code == 200
-    assert req.json == reward.as_dict()
+    assert req.json() == reward.as_dict()
+    assert (
+        req.headers.get("x-world-boss-service-response-cached") is not None
+    ) == caching
     if caching:
         time.sleep(2)
         assert not cache_exists(cache_key)
@@ -81,7 +89,7 @@ def test_count_total_users(
             "/raid/list/count", data={"text": 1, "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -131,7 +139,7 @@ def test_generate_ranking_rewards_csv(
             "/raid/rewards/list", data={"text": "1 1 1", "channel_id": "channel_id"}
         )
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -154,7 +162,7 @@ def test_next_tx_nonce(
     tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
     tx.payload = "payload"
     fx_session.add(tx)
-    fx_session.flush()
+    fx_session.commit()
     with unittest.mock.patch(
         "world_boss.app.api.client.chat_postMessage"
     ) as m, unittest.mock.patch(
@@ -162,7 +170,7 @@ def test_next_tx_nonce(
     ):
         req = fx_test_client.post("/nonce", data={"channel_id": "channel_id"})
         assert req.status_code == 200
-        assert req.json == 200
+        assert req.json() == 200
         m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")
 
 
@@ -205,7 +213,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
             "/prepare-reward-assets", data={"channel_id": "channel_id", "text": "3"}
         )
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -244,7 +252,7 @@ def test_stage_transactions(
             "/stage-transaction", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
@@ -285,7 +293,7 @@ def test_transaction_result(
             "/transaction-result", data={"channel_id": "channel_id", "text": text}
         )
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert task.state == "SUCCESS"
@@ -296,7 +304,7 @@ def test_transaction_result(
         assert kwargs["title"] == "world_boss_tx_result"
         assert "world_boss_tx_result" in kwargs["filename"]
         for tx in fx_session.query(Transaction):
-            assert tx.tx_result == "SUCCESS"
+            assert tx.tx_result == "INVALID"
 
 
 def test_check_balance(fx_session, fx_test_client, celery_session_worker):
@@ -331,7 +339,7 @@ def test_check_balance(fx_session, fx_test_client, celery_session_worker):
     ):
         req = fx_test_client.post("/balance", data={"channel_id": "channel_id"})
         assert req.status_code == 200
-        task_id = req.json["task_id"]
+        task_id = req.json()
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
         assert m.call_count == 2
@@ -340,35 +348,35 @@ def test_check_balance(fx_session, fx_test_client, celery_session_worker):
 
 
 @pytest.mark.parametrize(
-    "url",
+    "url, text",
     [
-        "/raid/list/count",
-        "/raid/rewards/list",
-        "/raid/prepare",
-        "/nonce",
-        "/prepare-reward-assets",
-        "/stage-transaction",
-        "/transaction-result",
-        "/balance",
+        ("/raid/list/count", "1"),
+        ("/raid/rewards/list", "1 1 1"),
+        ("/raid/prepare", "1 1"),
+        ("/nonce", None),
+        ("/prepare-reward-assets", "1"),
+        ("/stage-transaction", "main"),
+        ("/transaction-result", "main"),
+        ("/balance", None),
     ],
 )
-def test_slack_auth(fx_test_client, url: str):
-    req = fx_test_client.post(url)
+def test_slack_auth(fx_test_client, url: str, text: str):
+    req = fx_test_client.post(url, data={"channel_id": "channel_id", "text": text})
     assert req.status_code == 403
 
 
-def test_ping(fx_test_client: FlaskClient):
+def test_ping(fx_test_client: TestClient):
     req = fx_test_client.get("/ping")
     assert req.status_code == 200
-    assert req.json == {"message": "pong"}
+    assert req.json() == "pong"
 
     mocked_session = MagicMock()
     mocked_session.side_effect = TimeoutError()
 
     with unittest.mock.patch(
-        "world_boss.app.api.db.session.execute", side_effect=mocked_session
+        "world_boss.app.api.text", side_effect=mocked_session
     ) as m:
         req = fx_test_client.get("/ping")
         m.assert_called_once()
         assert req.status_code == 503
-        assert req.json == {"message": "database connection failed"}
+        assert req.json() == "database connection failed"

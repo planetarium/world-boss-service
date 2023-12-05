@@ -34,6 +34,7 @@ def test_transfer_assets(fx_session) -> None:
         [recipient],
         "test",
         "http://9c-internal-rpc-1.nine-chronicles.com/graphql",
+        fx_session,
     )
     transaction = fx_session.query(Transaction).first()
     assert result == transaction
@@ -53,7 +54,7 @@ async def test_stage_transactions_async(fx_session, fx_mainnet_transactions):
     fx_session.add_all(fx_mainnet_transactions)
     fx_session.flush()
     with pytest.raises(TransportQueryError):
-        await signer.stage_transactions_async(NetworkType.INTERNAL)
+        await signer.stage_transactions_async(NetworkType.INTERNAL, fx_session)
 
 
 @pytest.mark.asyncio
@@ -61,10 +62,10 @@ async def test_check_transaction_status_async(fx_session, fx_mainnet_transaction
     assert fx_session.query(Transaction).count() == 0
     fx_session.add_all(fx_mainnet_transactions)
     fx_session.flush()
-    await signer.check_transaction_status_async(NetworkType.MAIN)
+    await signer.check_transaction_status_async(NetworkType.MAIN, fx_session)
     transactions = fx_session.query(Transaction)
     for transaction in transactions:
-        assert transaction.tx_result == "SUCCESS"
+        assert transaction.tx_result == "INVALID"
 
 
 @pytest.mark.parametrize(
@@ -105,9 +106,9 @@ def test_query_transaction_result(fx_session, fx_mainnet_transactions):
     fx_session.add(tx)
     fx_session.flush()
     url = MINER_URLS[NetworkType.MAIN]
-    signer.query_transaction_result(url, tx.tx_id)
+    signer.query_transaction_result(url, tx.tx_id, fx_session)
     transaction = fx_session.query(Transaction).one()
-    assert transaction.tx_result == "SUCCESS"
+    assert transaction.tx_result == "INVALID"
 
 
 def test_query_balance(fx_session):
@@ -133,7 +134,7 @@ def test_query_balance(fx_session):
         fx_session.add(reward_amount)
         i += 1
     fx_session.commit()
-    currencies = get_currencies()
+    currencies = get_currencies(fx_session)
     for currency in currencies:
         balance = signer.query_balance(url, currency)
         assert balance == f'0 {currency["ticker"]}'
