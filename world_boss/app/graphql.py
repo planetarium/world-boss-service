@@ -10,6 +10,7 @@ from strawberry.fastapi import GraphQLRouter
 from strawberry.types import Info
 
 from world_boss.app.api import get_db
+from world_boss.app.config import config
 from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
@@ -66,17 +67,15 @@ class Query:
 class Mutation:
     @strawberry.mutation
     def generate_ranking_rewards_csv(
-        self, season_id: int, total_users: int, start_nonce: int, channel_id: str
+        self, season_id: int, total_users: int, start_nonce: int
     ) -> str:
         task = get_ranking_rewards.delay(
-            channel_id, season_id, total_users, start_nonce
+            config.slack_channel_id, season_id, total_users, start_nonce
         )
         return task.id
 
     @strawberry.mutation
-    def prepare_transfer_assets(
-        self, link: str, time_stamp: str, channel_id: str, info: Info
-    ) -> str:
+    def prepare_transfer_assets(self, link: str, time_stamp: str, info: Info) -> str:
         db = info.context["db"]
         file_id = link.split("/")[5]
         res = client.files_info(file=file_id)
@@ -126,12 +125,12 @@ class Mutation:
         return task.id
 
     @strawberry.mutation
-    def prepare_reward_assets(self, season_id: int, channel_id: str) -> str:
-        task = upload_prepare_reward_assets.delay(channel_id, season_id)
+    def prepare_reward_assets(self, season_id: int) -> str:
+        task = upload_prepare_reward_assets.delay(config.slack_channel_id, season_id)
         return task.id
 
     @strawberry.mutation
-    def stage_transactions(self, channel_id: str, info: Info) -> str:
+    def stage_transactions(self, info: Info) -> str:
         db = info.context["db"]
         nonce_list = (
             db.query(Transaction.nonce)
@@ -144,16 +143,20 @@ class Mutation:
             stage_transaction.s(headless_url, nonce)
             for headless_url in headless_urls
             for nonce, in nonce_list
-        )(send_slack_message.si(channel_id, f"stage {len(nonce_list)} transactions"))
+        )(
+            send_slack_message.si(
+                config.slack_channel_id, f"stage {len(nonce_list)} transactions"
+            )
+        )
         return task.id
 
     @strawberry.mutation
-    def transaction_result(self, channel_id: str, info: Info) -> str:
+    def transaction_result(self, info: Info) -> str:
         db = info.context["db"]
         tx_ids = db.query(Transaction.tx_id).filter_by(tx_result=None)
         url = MINER_URLS[NetworkType.MAIN]
         task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
-            upload_tx_result.s(channel_id)
+            upload_tx_result.s(config.slack_channel_id)
         )
         return task.id
 

@@ -5,6 +5,7 @@ import pytest
 from celery.result import AsyncResult
 from pytest_httpx import HTTPXMock
 
+from world_boss.app.config import config
 from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
 from world_boss.app.kms import HEADLESS_URLS, MINER_URLS
@@ -103,7 +104,7 @@ def test_generate_ranking_rewards_csv(
         },
     )
 
-    query = 'mutation { generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1, channelId: "channel_id") }'
+    query = "mutation { generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1) }"
     with patch("world_boss.app.tasks.client.files_upload_v2") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -115,7 +116,7 @@ def test_generate_ranking_rewards_csv(
         # skip check file. because file is temp file.
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
-        assert kwargs["channels"] == "channel_id"
+        assert kwargs["channels"] == config.slack_channel_id
         assert kwargs["title"] == f"world_boss_1_1_1_result"
         assert kwargs["filename"] == f"world_boss_1_1_1_result.csv"
 
@@ -189,7 +190,7 @@ def test_prepare_transfer_assets(
         content=(header + content).encode() if has_header else content.encode(),
     )
 
-    query = 'mutation { prepareTransferAssets(link: "https://planetariumhq.slack.com/files/1/2/test.csv", timeStamp: "2022-12-31", channelId: "channel_id") }'
+    query = 'mutation { prepareTransferAssets(link: "https://planetariumhq.slack.com/files/1/2/test.csv", timeStamp: "2022-12-31") }'
 
     with patch(
         "world_boss.app.api.client.files_info", return_value=mocked_response
@@ -256,7 +257,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
         fx_session.add(transaction)
         result.append(reward_amount)
     fx_session.commit()
-    query = 'mutation { prepareRewardAssets(seasonId: 3, channelId: "channel_id") }'
+    query = "mutation { prepareRewardAssets(seasonId: 3) }"
     with patch("world_boss.app.tasks.client.chat_postMessage") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -266,7 +267,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
         assert task.state == "SUCCESS"
 
         m.assert_called_once_with(
-            channel="channel_id",
+            channel=config.slack_channel_id,
             text="world boss season 3 prepareRewardAssets\n```plain_value:{'type_id': 'prepare_reward_assets', 'values': {'a': "
             "[], 'r': "
             "b'%1\\xe5\\xe0l\\xbd\\x11\\xafT\\xf9\\x8d9W\\x89\\x90qo\\xfc}\\xba'}}\n"
@@ -285,7 +286,7 @@ def test_stage_transactions(
         fx_session.add(tx)
     fx_session.commit()
     network_type = NetworkType.MAIN
-    query = 'mutation { stageTransactions(channelId: "channel_id") }'
+    query = "mutation { stageTransactions }"
     with patch(
         "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
     ) as m, patch("world_boss.app.tasks.client.chat_postMessage") as m2:
@@ -296,7 +297,8 @@ def test_stage_transactions(
         task.get(timeout=30)
         assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
         m2.assert_called_once_with(
-            channel="channel_id", text=f"stage {len(fx_transactions)} transactions"
+            channel=config.slack_channel_id,
+            text=f"stage {len(fx_transactions)} transactions",
         )
 
 
@@ -324,7 +326,7 @@ def test_transaction_result(
         transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
         fx_session.add(transaction)
     fx_session.commit()
-    query = 'mutation { transactionResult(channelId: "channel_id") }'
+    query = "mutation { transactionResult }"
     with patch("world_boss.app.tasks.client.files_upload_v2") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -335,7 +337,7 @@ def test_transaction_result(
         m.assert_called_once()
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
-        assert kwargs["channels"] == "channel_id"
+        assert kwargs["channels"] == config.slack_channel_id
         assert kwargs["title"] == "world_boss_tx_result"
         assert "world_boss_tx_result" in kwargs["filename"]
         for tx in fx_session.query(Transaction):

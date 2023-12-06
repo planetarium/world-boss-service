@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     slack_signing_secret: str
     sentry_dsn: str = ""
     sentry_sample_rate: float = 0.1
+    slack_channel_id: str
 
     class Config:
         env_file = ".env"
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
                 "env": "SENTRY_DSN",
             },
             "sentry_sample_rate": {"env": "SENTRY_SAMPLE_RATE"},
+            "slack_channel_id": {"env": "SLACK_CHANNEL_ID"},
         }
 
 
