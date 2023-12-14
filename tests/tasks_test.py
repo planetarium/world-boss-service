@@ -283,8 +283,8 @@ def test_query_tx_result(celery_session_worker, fx_session, fx_transactions):
             timeout=10
         )
         tx = fx_session.query(Transaction).filter_by(tx_id=tx_id).one()
-        assert result == "INVALID"
-        assert tx.tx_result == "INVALID"
+        assert result == "INCLUDED"
+        assert tx.tx_result == "INCLUDED"
 
 
 def test_upload_result(

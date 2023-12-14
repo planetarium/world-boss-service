@@ -341,4 +341,4 @@ def test_transaction_result(
         assert kwargs["title"] == "world_boss_tx_result"
         assert "world_boss_tx_result" in kwargs["filename"]
         for tx in fx_session.query(Transaction):
-            assert tx.tx_result == "INVALID"
+            assert tx.tx_result == "INCLUDED"

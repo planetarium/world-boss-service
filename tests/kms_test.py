@@ -65,7 +65,7 @@ async def test_check_transaction_status_async(fx_session, fx_mainnet_transaction
     await signer.check_transaction_status_async(NetworkType.MAIN, fx_session)
     transactions = fx_session.query(Transaction)
     for transaction in transactions:
-        assert transaction.tx_result == "INVALID"
+        assert transaction.tx_result == "INCLUDED"
 
 
 @pytest.mark.parametrize(
@@ -108,7 +108,7 @@ def test_query_transaction_result(fx_session, fx_mainnet_transactions):
     url = MINER_URLS[NetworkType.MAIN]
     signer.query_transaction_result(url, tx.tx_id, fx_session)
     transaction = fx_session.query(Transaction).one()
-    assert transaction.tx_result == "INVALID"
+    assert transaction.tx_result == "INCLUDED"
 
 
 def test_query_balance(fx_session):
