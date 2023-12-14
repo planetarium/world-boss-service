@@ -39,6 +39,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
           KMS_KEY_ID: ${{ secrets.KMS_KEY_ID }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          GRAPHQL_PASSWORD: ${{ secrets.GRAPHQL_PASSWORD }}
         run: |
           poetry run pytest --redis-exec=$(which redis-server) --cov world_boss --cov-report=xml
       - name: Upload coverage to Codecov

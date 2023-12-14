@@ -6,6 +6,7 @@ import httpx
 import strawberry
 from celery import chord
 from fastapi import Depends
+from strawberry import BasePermission
 from strawberry.fastapi import GraphQLRouter
 from strawberry.types import Info
 
@@ -41,6 +42,14 @@ async def get_context(db=Depends(get_db)):
     }
 
 
+class IsAuthenticated(BasePermission):
+    message = "User is not authenticated"
+
+    # This method can also be async!
+    def has_permission(self, source: typing.Any, info: Info, **kwargs) -> bool:
+        return kwargs["password"] == config.graphql_password
+
+
 @strawberry.type
 class Query:
     @strawberry.field
@@ -67,7 +76,11 @@ class Query:
 class Mutation:
     @strawberry.mutation
     def generate_ranking_rewards_csv(
-        self, season_id: int, total_users: int, start_nonce: int
+        self,
+        season_id: int,
+        total_users: int,
+        start_nonce: int,
+        password: str,
     ) -> str:
         task = get_ranking_rewards.delay(
             config.slack_channel_id, season_id, total_users, start_nonce
@@ -75,7 +88,9 @@ class Mutation:
         return task.id
 
     @strawberry.mutation
-    def prepare_transfer_assets(self, link: str, time_stamp: str, info: Info) -> str:
+    def prepare_transfer_assets(
+        self, link: str, time_stamp: str, password: str, info: Info
+    ) -> str:
         db = info.context["db"]
         file_id = link.split("/")[5]
         res = client.files_info(file=file_id)
@@ -125,12 +140,12 @@ class Mutation:
         return task.id
 
     @strawberry.mutation
-    def prepare_reward_assets(self, season_id: int) -> str:
+    def prepare_reward_assets(self, season_id: int, password: str) -> str:
         task = upload_prepare_reward_assets.delay(config.slack_channel_id, season_id)
         return task.id
 
     @strawberry.mutation
-    def stage_transactions(self, info: Info) -> str:
+    def stage_transactions(self, password: str, info: Info) -> str:
         db = info.context["db"]
         nonce_list = (
             db.query(Transaction.nonce)
@@ -150,8 +165,8 @@ class Mutation:
         )
         return task.id
 
-    @strawberry.mutation
-    def transaction_result(self, info: Info) -> str:
+    @strawberry.mutation(permission_classes=[IsAuthenticated])
+    def transaction_result(self, password: str, info: Info) -> str:
         db = info.context["db"]
         tx_ids = db.query(Transaction.tx_id).filter_by(tx_result=None)
         url = MINER_URLS[NetworkType.MAIN]

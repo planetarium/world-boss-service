@@ -104,7 +104,7 @@ def test_generate_ranking_rewards_csv(
         },
     )
 
-    query = "mutation { generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1) }"
+    query = f'mutation {{ generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1, password: "{config.graphql_password}") }}'
     with patch("world_boss.app.tasks.client.files_upload_v2") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -190,7 +190,7 @@ def test_prepare_transfer_assets(
         content=(header + content).encode() if has_header else content.encode(),
     )
 
-    query = 'mutation { prepareTransferAssets(link: "https://planetariumhq.slack.com/files/1/2/test.csv", timeStamp: "2022-12-31") }'
+    query = f'mutation {{ prepareTransferAssets(link: "https://planetariumhq.slack.com/files/1/2/test.csv", timeStamp: "2022-12-31", password:"{config.graphql_password}") }}'
 
     with patch(
         "world_boss.app.api.client.files_info", return_value=mocked_response
@@ -257,7 +257,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
         fx_session.add(transaction)
         result.append(reward_amount)
     fx_session.commit()
-    query = "mutation { prepareRewardAssets(seasonId: 3) }"
+    query = f'mutation {{ prepareRewardAssets(seasonId: 3, password: "{config.graphql_password}") }}'
     with patch("world_boss.app.tasks.client.chat_postMessage") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -286,7 +286,7 @@ def test_stage_transactions(
         fx_session.add(tx)
     fx_session.commit()
     network_type = NetworkType.MAIN
-    query = "mutation { stageTransactions }"
+    query = f'mutation {{ stageTransactions(password: "{config.graphql_password}") }}'
     with patch(
         "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
     ) as m, patch("world_boss.app.tasks.client.chat_postMessage") as m2:
@@ -326,7 +326,7 @@ def test_transaction_result(
         transaction.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
         fx_session.add(transaction)
     fx_session.commit()
-    query = "mutation { transactionResult }"
+    query = f'mutation {{ transactionResult(password: "{config.graphql_password}") }}'
     with patch("world_boss.app.tasks.client.files_upload_v2") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200

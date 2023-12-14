@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_sample_rate: float = 0.1
     slack_channel_id: str
+    graphql_password: str
 
     class Config:
         env_file = ".env"
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
             },
             "sentry_sample_rate": {"env": "SENTRY_SAMPLE_RATE"},
             "slack_channel_id": {"env": "SLACK_CHANNEL_ID"},
+            "graphql_password": {"env": "GRAPHQL_PASSWORD"},
         }
 
 
