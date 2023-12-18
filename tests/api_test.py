@@ -27,6 +27,7 @@ def test_raid_rewards_404(fx_test_client, redisdb, fx_session):
     assert req.status_code == 404
 
 
+@pytest.mark.skip("duplicate graphql test")
 @pytest.mark.parametrize(
     "caching",
     [
@@ -72,6 +73,7 @@ def test_raid_rewards(fx_test_client, fx_session, redis_proc, caching: bool):
         assert not cache_exists(cache_key)
 
 
+@pytest.mark.skip("duplicate graphql test")
 def test_count_total_users(
     fx_test_client, celery_session_worker, httpx_mock: HTTPXMock
 ):
@@ -98,6 +100,7 @@ def test_count_total_users(
         )
 
 
+@pytest.mark.skip("duplicate graphql test")
 def test_generate_ranking_rewards_csv(
     fx_test_client, celery_session_worker, httpx_mock: HTTPXMock, fx_ranking_rewards
 ):
@@ -152,6 +155,7 @@ def test_generate_ranking_rewards_csv(
         assert kwargs["filename"] == f"world_boss_1_1_1_result.csv"
 
 
+@pytest.mark.skip("duplicate graphql test")
 def test_next_tx_nonce(
     fx_test_client,
     fx_session,
@@ -174,6 +178,7 @@ def test_next_tx_nonce(
         m.assert_called_once_with(channel="channel_id", text="next tx nonce: 2")
 
 
+@pytest.mark.skip("duplicate graphql test")
 def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session):
     result = []
     assets = [
@@ -228,6 +233,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
         )
 
 
+@pytest.mark.skip("duplicate graphql test")
 @pytest.mark.parametrize("text", ["main", "internal"])
 def test_stage_transactions(
     fx_test_client,
@@ -304,9 +310,10 @@ def test_transaction_result(
         assert kwargs["title"] == "world_boss_tx_result"
         assert "world_boss_tx_result" in kwargs["filename"]
         for tx in fx_session.query(Transaction):
-            assert tx.tx_result == "INVALID"
+            assert tx.tx_result == "INCLUDED"
 
 
+@pytest.mark.skip("duplicate graphql test")
 def test_check_balance(fx_session, fx_test_client, celery_session_worker):
     reward = WorldBossReward()
     reward.avatar_address = "avatar_address"

@@ -24,13 +24,14 @@ celery = "^5.2.7"
 celery-types = "^0.14.0"
 pydantic = {extras = ["dotenv"], version = "^1.10.2"}
 bencodex = "^1.0.1"
-gql = {version = "^3.5.0b0", allow-prereleases = true}
 sentry-sdk = {extras = ["fastapi"], version = "^1.35.0"}
 fastapi = "^0.104.1"
 sqlalchemy = "^2.0.23"
 alembic = "^1.12.1"
 uvicorn = "^0.24.0.post1"
 python-multipart = "^0.0.6"
+strawberry-graphql = {extras = ["fastapi"], version = "^0.215.1"}
+gql = {extras = ["aiohttp", "requests"], version = "^3.4.1"}
 
 
 [tool.poetry.group.dev.dependencies]
