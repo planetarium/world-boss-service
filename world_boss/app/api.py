@@ -9,8 +9,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse, Response
 
+from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction
 from world_boss.app.orm import SessionLocal
 from world_boss.app.raid import (
@@ -131,7 +132,7 @@ async def prepare_transfer_assets(
         assert len(recipient_map[k]) <= 100
     # insert tables
     memo = "world boss ranking rewards by world boss signer"
-    url = MINER_URLS[NetworkType.MAIN]
+    url = config.headless_url
     task = chord(
         sign_transfer_assets.s(
             time_stamp,
@@ -185,7 +186,7 @@ async def stage_transactions(
     network_type = NetworkType.INTERNAL
     if text.lower() == "main":
         network_type = NetworkType.MAIN
-    headless_urls = HEADLESS_URLS[network_type]
+    headless_urls = [config.headless_url]
     task = chord(
         stage_transaction.s(headless_url, nonce)
         for headless_url in headless_urls
@@ -202,7 +203,7 @@ async def transaction_result(
     db: Session = Depends(get_db),
 ):
     tx_ids = db.query(Transaction.tx_id).filter_by(tx_result=None)
-    url = MINER_URLS[NetworkType.MAIN]
+    url = config.headless_url
     task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
         upload_tx_result.s(channel_id)
     )
@@ -215,7 +216,7 @@ async def check_balance(
     request: Request, channel_id: Annotated[str, Form()], db: Session = Depends(get_db)
 ):
     currencies = get_currencies(db)
-    url = MINER_URLS[NetworkType.MAIN]
+    url = config.headless_url
     task = chord(check_signer_balance.s(url, currency) for currency in currencies)(
         upload_balance_result.s(channel_id)
     )

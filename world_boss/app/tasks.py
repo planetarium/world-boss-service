@@ -8,9 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from world_boss.app.config import config
-from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
+from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import MINER_URLS, signer
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
     get_assets,
@@ -37,7 +37,7 @@ TaskSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=task_eng
 
 @celery.task()
 def count_users(channel_id: str, raid_id: int):
-    total_count = data_provider_client.get_total_users_count(raid_id, NetworkType.MAIN)
+    total_count = data_provider_client.get_total_users_count(raid_id)
     client.chat_postMessage(
         channel=channel_id,
         text=f"world boss season {raid_id} total users: {total_count}",
@@ -59,7 +59,7 @@ def get_ranking_rewards(
         except Exception as e:
             client.chat_postMessage(
                 channel=channel_id,
-                text=f"failed to get rewards from {DATA_PROVIDER_URLS[NetworkType.MAIN]} exc: {e}",
+                text=f"failed to get rewards from {config.data_provider_url} exc: {e}",
             )
             raise e
         rewards = update_agent_address(result, raid_id, NetworkType.MAIN, offset, size)
@@ -140,7 +140,7 @@ def insert_world_boss_rewards(rows: List[RecipientRow]):
 def upload_prepare_reward_assets(channel_id: str, raid_id: int):
     with TaskSessionLocal() as db:
         assets = get_assets(raid_id, db)
-        result = signer.prepare_reward_assets(MINER_URLS[NetworkType.MAIN], assets)
+        result = signer.prepare_reward_assets(config.headless_url, assets)
         decoded = bencodex.loads(bytes.fromhex(result))
         client.chat_postMessage(
             channel=channel_id,

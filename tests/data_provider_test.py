@@ -5,7 +5,8 @@ import pytest
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.cache import cache_exists, set_to_cache
-from world_boss.app.data_provider import DATA_PROVIDER_URLS, data_provider_client
+from world_boss.app.config import config
+from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
 from world_boss.app.stubs import RankingRewardDictionary
 
@@ -15,7 +16,7 @@ from world_boss.app.stubs import RankingRewardDictionary
 def test_get_total_users_count(
     network_type: NetworkType, raid_id: int, expected_count: int
 ):
-    result = data_provider_client.get_total_users_count(raid_id, network_type)
+    result = data_provider_client.get_total_users_count(raid_id)
     assert result == expected_count
 
 
@@ -60,7 +61,7 @@ def test_get_ranking_rewards_error(
     cache_key = f"world_boss_{raid_id}_{network_type}_{offset}_{limit}"
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[network_type],
+        url=config.data_provider_url,
         json={
             "errors": [{"message": "can't receive"}],
             "data": {"worldBossRankingRewards": None},

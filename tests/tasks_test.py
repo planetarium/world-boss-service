@@ -5,9 +5,9 @@ from typing import List
 import pytest
 from pytest_httpx import HTTPXMock
 
-from world_boss.app.data_provider import DATA_PROVIDER_URLS
+from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import MINER_URLS, signer
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.stubs import (
     RankingRewardDictionary,
@@ -30,7 +30,7 @@ from world_boss.app.tasks import (
 def test_count_users(celery_session_worker, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        url=config.data_provider_url,
         json={"data": {"worldBossTotalUsers": 100}},
     )
     with unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m:
@@ -91,13 +91,13 @@ def test_get_ranking_rewards(
     redisdb.set(rewards_cache_key, json.dumps(cached_rewards))
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        url=config.data_provider_url,
         json={"data": {"worldBossRankingRewards": requested_rewards}},
     )
     redisdb.set(addresses_cache_key, json.dumps(cached_addresses))
     httpx_mock.add_response(
         method="POST",
-        url=MINER_URLS[NetworkType.MAIN],
+        url=config.headless_url,
         json={
             "data": {
                 "stateQuery": {
@@ -136,7 +136,7 @@ def test_get_ranking_rewards_error(
 
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        url=config.data_provider_url,
         json={
             "errors": [{"message": "can't receive"}],
             "data": {"worldBossRankingRewards": None},
@@ -180,7 +180,7 @@ def test_sign_transfer_assets(
         nonce,
         [],
         "memo",
-        MINER_URLS[NetworkType.MAIN],
+        config.headless_url,
         max_nonce,
         nonce_list,
     ).get(timeout=10)
@@ -251,7 +251,7 @@ def test_stage_transaction(
     transaction.nonce = 1
     fx_session.add(transaction)
     fx_session.commit()
-    url = MINER_URLS[network_type]
+    url = config.headless_url
     with unittest.mock.patch(
         "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
     ) as m:
@@ -279,9 +279,7 @@ def test_query_tx_result(celery_session_worker, fx_session, fx_transactions):
     fx_session.commit()
 
     for tx_id in tx_ids:
-        _, result = query_tx_result.delay(MINER_URLS[NetworkType.MAIN], tx_id).get(
-            timeout=10
-        )
+        _, result = query_tx_result.delay(config.headless_url, tx_id).get(timeout=10)
         tx = fx_session.query(Transaction).filter_by(tx_id=tx_id).one()
         assert result == "INCLUDED"
         assert tx.tx_result == "INCLUDED"
@@ -306,9 +304,7 @@ def test_upload_result(
 )
 def test_check_signer_balance(celery_session_worker, ticker: str, decimal_places: int):
     currency = {"ticker": ticker, "decimalPlaces": decimal_places, "minters": []}
-    result = check_signer_balance.delay(MINER_URLS[NetworkType.MAIN], currency).get(
-        timeout=10
-    )
+    result = check_signer_balance.delay(config.headless_url, currency).get(timeout=10)
     assert result == f"0 {ticker}"
 
 
