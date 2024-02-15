@@ -13,8 +13,7 @@ from strawberry.types import Info
 from world_boss.app.api import get_db
 from world_boss.app.config import config
 from world_boss.app.data_provider import data_provider_client
-from world_boss.app.enums import NetworkType
-from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction
 from world_boss.app.raid import (
     get_currencies,
@@ -60,12 +59,12 @@ class Query:
 
     @strawberry.field
     def count_total_users(self, season_id: int) -> int:
-        return data_provider_client.get_total_users_count(season_id, NetworkType.MAIN)
+        return data_provider_client.get_total_users_count(season_id)
 
     @strawberry.field
     def check_balance(self, info: Info) -> typing.List[str]:
         currencies = get_currencies(info.context["db"])
-        url = MINER_URLS[NetworkType.MAIN]
+        url = config.headless_url
         result = []
         for currency in currencies:
             result.append(signer.query_balance(url, currency))
@@ -124,7 +123,7 @@ class Mutation:
             assert len(recipient_map[k]) <= 100
         # insert tables
         memo = "world boss ranking rewards by world boss signer"
-        url = MINER_URLS[NetworkType.MAIN]
+        url = config.headless_url
         task = chord(
             sign_transfer_assets.s(
                 time_stamp,
@@ -152,8 +151,7 @@ class Mutation:
             .filter_by(signer=signer.address, tx_result=None)
             .all()
         )
-        network_type = NetworkType.MAIN
-        headless_urls = HEADLESS_URLS[network_type]
+        headless_urls = [config.headless_url]
         task = chord(
             stage_transaction.s(headless_url, nonce)
             for headless_url in headless_urls
@@ -169,7 +167,7 @@ class Mutation:
     def transaction_result(self, password: str, info: Info) -> str:
         db = info.context["db"]
         tx_ids = db.query(Transaction.tx_id).filter_by(tx_result=None)
-        url = MINER_URLS[NetworkType.MAIN]
+        url = config.headless_url
         task = chord(query_tx_result.s(url, str(tx_id)) for tx_id, in tx_ids)(
             upload_tx_result.s(config.slack_channel_id)
         )

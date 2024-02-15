@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from starlette.responses import Response
 
 from world_boss.app.cache import cache_exists, get_from_cache, set_to_cache
+from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.stubs import (
@@ -95,7 +95,7 @@ def update_agent_address(
         for avatar_address in query_keys:
             variables[f"arg{avatar_address}"] = avatar_address
         req = http_client.post(
-            MINER_URLS[NetworkType.MAIN], json={"query": query, "variables": variables}
+            config.headless_url, json={"query": query, "variables": variables}
         )
         query_result = req.json()
         agents = query_result["data"]["stateQuery"]

@@ -6,8 +6,9 @@ import bencodex
 import pytest
 from gql.transport.exceptions import TransportQueryError
 
+from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import HEADLESS_URLS, MINER_URLS, signer
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import get_currencies
 from world_boss.app.stubs import AmountDictionary, Recipient
@@ -76,7 +77,7 @@ async def test_check_transaction_status_async(fx_session, fx_mainnet_transaction
     ],
 )
 def test_prepare_reward_assets(fx_app, network_type: NetworkType):
-    headless_url = MINER_URLS[network_type]
+    headless_url = config.headless_url
     assets: List[AmountDictionary] = [
         {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
         {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
@@ -94,7 +95,7 @@ def test_stage_transaction(fx_session, fx_mainnet_transactions):
     tx = fx_mainnet_transactions[0]
     fx_session.add(tx)
     fx_session.flush()
-    urls = HEADLESS_URLS[NetworkType.INTERNAL]
+    urls = [config.headless_url]
     for url in urls:
         with pytest.raises(TransportQueryError) as e:
             signer.stage_transaction(url, tx)
@@ -105,14 +106,14 @@ def test_query_transaction_result(fx_session, fx_mainnet_transactions):
     tx = fx_mainnet_transactions[0]
     fx_session.add(tx)
     fx_session.flush()
-    url = MINER_URLS[NetworkType.MAIN]
+    url = config.headless_url
     signer.query_transaction_result(url, tx.tx_id, fx_session)
     transaction = fx_session.query(Transaction).one()
     assert transaction.tx_result == "INCLUDED"
 
 
 def test_query_balance(fx_session):
-    url = MINER_URLS[NetworkType.MAIN]
+    url = config.headless_url
     reward = WorldBossReward()
     reward.avatar_address = "avatar_address"
     reward.agent_address = "agent_address"

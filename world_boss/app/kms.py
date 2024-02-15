@@ -21,21 +21,6 @@ from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
-MINER_URLS: dict[NetworkType, str] = {
-    NetworkType.MAIN: "https://9c-main-full-state.nine-chronicles.com/graphql",
-    NetworkType.INTERNAL: "http://9c-internal-validator-5.nine-chronicles.com/graphql",
-}
-
-HEADLESS_URLS: dict[NetworkType, typing.List[str]] = {
-    NetworkType.MAIN: [
-        MINER_URLS[NetworkType.MAIN],
-    ],
-    NetworkType.INTERNAL: [
-        MINER_URLS[NetworkType.INTERNAL],
-        "http://9c-internal-rpc-1.nine-chronicles.com/graphql",
-    ],
-}
-
 
 class KmsWorldBossSigner:
     def __init__(self, key_id: str):
@@ -232,7 +217,7 @@ class KmsWorldBossSigner:
             return f"{balance} {ticker}"
 
     async def stage_transactions_async(self, network_type: NetworkType, db: Session):
-        headless_urls = HEADLESS_URLS[network_type]
+        headless_urls = [config.headless_url]
         transactions = (
             db.query(Transaction).filter_by(tx_result=None).order_by(Transaction.nonce)
         )
@@ -265,7 +250,7 @@ class KmsWorldBossSigner:
     async def check_transaction_status_async(
         self, network_type: NetworkType, db: Session
     ):
-        headless_url = MINER_URLS[network_type]
+        headless_url = config.headless_url
         transactions = (
             db.query(Transaction).filter_by(tx_result=None).order_by(Transaction.nonce)
         )

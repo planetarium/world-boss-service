@@ -6,9 +6,7 @@ from celery.result import AsyncResult
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.config import config
-from world_boss.app.data_provider import DATA_PROVIDER_URLS
 from world_boss.app.enums import NetworkType
-from world_boss.app.kms import HEADLESS_URLS, MINER_URLS
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 
 
@@ -27,7 +25,7 @@ def test_next_tx_nonce(fx_session, fx_test_client):
 def test_count_total_users(fx_test_client, httpx_mock: HTTPXMock):
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        url=config.data_provider_url,
         json={"data": {"worldBossTotalUsers": 100}},
     )
     query = "query { countTotalUsers(seasonId: 1) }"
@@ -86,13 +84,13 @@ def test_generate_ranking_rewards_csv(
     ]
     httpx_mock.add_response(
         method="POST",
-        url=DATA_PROVIDER_URLS[NetworkType.MAIN],
+        url=config.data_provider_url,
         json={"data": {"worldBossRankingRewards": requested_rewards}},
     )
 
     httpx_mock.add_response(
         method="POST",
-        url=MINER_URLS[NetworkType.MAIN],
+        url=config.headless_url,
         json={
             "data": {
                 "stateQuery": {
@@ -295,7 +293,7 @@ def test_stage_transactions(
         task_id = req.json()["data"]["stageTransactions"]
         task: AsyncResult = AsyncResult(task_id)
         task.get(timeout=30)
-        assert m.call_count == len(HEADLESS_URLS[network_type]) * len(fx_transactions)
+        assert m.call_count == len(fx_transactions)
         m2.assert_called_once_with(
             channel=config.slack_channel_id,
             text=f"stage {len(fx_transactions)} transactions",
