@@ -42,6 +42,9 @@ jobs:
           GRAPHQL_PASSWORD: ${{ secrets.GRAPHQL_PASSWORD }}
           HEADLESS_URL: ${{ secrets.HEADLESS_URL }}
           DATA_PROVIDER_URL: ${{ secrets.DATA_PROVIDER_URL }}
+          HEADLESS_JWT_SECRET: ${{ secrets.HEADLESS_JWT_SECRET }}
+          HEADLESS_JWT_ISS: ${{ secrets.HEADLESS_JWT_ISS }}
+          HEADLESS_JWT_ALGORITHM: ${{ secrets.HEADLESS_JWT_ALGORITHM }}
         run: |
           poetry run pytest --redis-exec=$(which redis-server) --cov world_boss --cov-report=xml
       - name: Upload coverage to Codecov

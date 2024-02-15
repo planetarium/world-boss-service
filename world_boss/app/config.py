@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     graphql_password: str
     headless_url: str
     data_provider_url: str
+    headless_jwt_secret: str
+    headless_jwt_iss: str
+    headless_jwt_algorithm: str
 
     class Config:
         env_file = ".env"
@@ -62,6 +65,9 @@ class Settings(BaseSettings):
             "graphql_password": {"env": "GRAPHQL_PASSWORD"},
             "headless_url": {"env": "HEADLESS_URL"},
             "data_provider_url": {"env": "DATA_PROVIDER_URL"},
+            "headless_jwt_secret": {"env": "HEADLESS_JWT_SECRET"},
+            "headless_jwt_iss": {"env": "HEADLESS_JWT_ISS"},
+            "headless_jwt_algorithm": {"env": "HEADLESS_JWT_ALGORITHM"},
         }
 
 
