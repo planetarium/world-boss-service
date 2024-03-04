@@ -248,7 +248,7 @@ def get_currencies(db: Session) -> List[CurrencyDictionary]:
 def get_jwt_auth_header() -> dict[str, str]:
     encoded = jwt.encode(
         {
-            "exp": (datetime.datetime.now() + datetime.timedelta(hours=1))
+            "exp": (datetime.datetime.now() + datetime.timedelta(minutes=5))
             .astimezone(tz=datetime.timezone.utc)
             .timestamp(),
             "iss": config.headless_jwt_iss,
