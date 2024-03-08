@@ -1,8 +1,10 @@
 import csv
+import datetime
 import json
 from typing import List, Tuple, cast
 
 import httpx
+import jwt
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
@@ -67,7 +69,7 @@ def update_agent_address(
         cached_value = get_from_cache(cache_key)
         return json.loads(cached_value)
     else:
-        http_client = httpx.Client(timeout=None)
+        http_client = httpx.Client(timeout=None, headers=get_jwt_auth_header())
         rewards: List[RankingRewardWithAgentDictionary] = []
         query_keys = [r["raider"]["address"] for r in results]
         alias_key_format = "arg{}"
@@ -241,3 +243,17 @@ def get_currencies(db: Session) -> List[CurrencyDictionary]:
         }
         result.append(currency)
     return result
+
+
+def get_jwt_auth_header() -> dict[str, str]:
+    encoded = jwt.encode(
+        {
+            "exp": (datetime.datetime.now() + datetime.timedelta(minutes=5))
+            .astimezone(tz=datetime.timezone.utc)
+            .timestamp(),
+            "iss": config.headless_jwt_iss,
+        },
+        config.headless_jwt_secret,
+        algorithm=config.headless_jwt_algorithm,
+    )
+    return {"Authorization": f"Bearer {encoded}"}

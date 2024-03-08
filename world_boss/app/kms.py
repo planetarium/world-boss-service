@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
+from world_boss.app.raid import get_jwt_auth_header
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 
 
@@ -39,11 +40,13 @@ class KmsWorldBossSigner:
         return ethereum_kms_signer.get_eth_address(self._key_id)
 
     def _get_client(self, headless_url: str) -> Client:
-        transport = RequestsHTTPTransport(url=headless_url)
+        transport = RequestsHTTPTransport(
+            url=headless_url, headers=get_jwt_auth_header()
+        )
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _get_async_client(self, headless_url: str) -> Client:
-        transport = AIOHTTPTransport(url=headless_url)
+        transport = AIOHTTPTransport(url=headless_url, headers=get_jwt_auth_header())
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _sign_and_save(
