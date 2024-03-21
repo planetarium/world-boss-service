@@ -3,7 +3,7 @@ from tempfile import NamedTemporaryFile
 from typing import List, Tuple
 
 import bencodex
-from celery import Celery
+from celery import Celery, chord
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -14,6 +14,7 @@ from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
     get_assets,
+    get_tx_delay_factor,
     update_agent_address,
     write_ranking_rewards_csv,
     write_tx_result_csv,
@@ -195,3 +196,17 @@ def upload_balance_result(balance: List[str], channel_id: str):
     balance_str = "\n".join(balance)
     msg = f"world boss pool balance.\naddress:{signer.address}\n\n{balance_str}"
     send_slack_message(channel_id, msg)
+
+
+@celery.task()
+def stage_transactions_with_countdown(headless_url: str, nonce_list: List[int]):
+    chord(
+        stage_transaction.signature(
+            (headless_url, nonce), countdown=get_tx_delay_factor(i)
+        )
+        for i, nonce in enumerate(nonce_list)
+    )(
+        send_slack_message.si(
+            config.slack_channel_id, f"stage {len(nonce_list)} transactions"
+        )
+    )

@@ -27,9 +27,8 @@ from world_boss.app.tasks import (
     get_ranking_rewards,
     insert_world_boss_rewards,
     query_tx_result,
-    send_slack_message,
     sign_transfer_assets,
-    stage_transaction,
+    stage_transactions_with_countdown,
     upload_prepare_reward_assets,
     upload_tx_result,
 )
@@ -146,21 +145,13 @@ class Mutation:
     @strawberry.mutation
     def stage_transactions(self, password: str, info: Info) -> str:
         db = info.context["db"]
-        nonce_list = (
-            db.query(Transaction.nonce)
+        nonce_list = [
+            i[0]
+            for i in db.query(Transaction.nonce)
             .filter_by(signer=signer.address, tx_result=None)
             .all()
-        )
-        headless_urls = [config.headless_url]
-        task = chord(
-            stage_transaction.s(headless_url, nonce)
-            for headless_url in headless_urls
-            for nonce, in nonce_list
-        )(
-            send_slack_message.si(
-                config.slack_channel_id, f"stage {len(nonce_list)} transactions"
-            )
-        )
+        ]
+        task = stage_transactions_with_countdown.delay(config.headless_url, nonce_list)
         return task.id
 
     @strawberry.mutation(permission_classes=[IsAuthenticated])

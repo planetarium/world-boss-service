@@ -6,7 +6,6 @@ from celery.result import AsyncResult
 from pytest_httpx import HTTPXMock
 
 from world_boss.app.config import config
-from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 
 
@@ -283,21 +282,12 @@ def test_stage_transactions(
     for tx in fx_transactions:
         fx_session.add(tx)
     fx_session.commit()
-    network_type = NetworkType.MAIN
     query = f'mutation {{ stageTransactions(password: "{config.graphql_password}") }}'
-    with patch(
-        "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
-    ) as m, patch("world_boss.app.tasks.client.chat_postMessage") as m2:
+    with patch("world_boss.app.graphql.stage_transactions_with_countdown.delay") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
-        task_id = req.json()["data"]["stageTransactions"]
-        task: AsyncResult = AsyncResult(task_id)
-        task.get(timeout=30)
-        assert m.call_count == len(fx_transactions)
-        m2.assert_called_once_with(
-            channel=config.slack_channel_id,
-            text=f"stage {len(fx_transactions)} transactions",
-        )
+        req.json()["data"]["stageTransactions"]
+        m.assert_called_once_with(config.headless_url, [1, 2])
 
 
 def test_transaction_result(

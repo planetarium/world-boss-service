@@ -1,4 +1,5 @@
 import json
+import time
 import unittest.mock
 from typing import List
 
@@ -22,6 +23,7 @@ from world_boss.app.tasks import (
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
+    stage_transactions_with_countdown,
     upload_balance_result,
     upload_tx_result,
 )
@@ -240,9 +242,7 @@ def test_send_slack_message(
 
 @pytest.mark.parametrize("network_type", [NetworkType.MAIN, NetworkType.INTERNAL])
 def test_stage_transaction(
-    celery_session_worker,
-    fx_session,
-    network_type: NetworkType,
+    celery_session_worker, fx_session, network_type: NetworkType
 ):
     transaction = Transaction()
     transaction.tx_id = "tx_id"
@@ -315,3 +315,27 @@ def test_upload_balance_result(celery_session_worker):
         )
         msg = f"world boss pool balance.\naddress:{signer.address}\n\n0 CRYSTAL\n1 RUNE"
         m.assert_called_once_with(channel="channel_id", text=msg)
+
+
+def test_stage_transactions_with_countdown(
+    fx_test_client,
+    celery_session_worker,
+    fx_session,
+    fx_transactions,
+):
+    for tx in fx_transactions:
+        fx_session.add(tx)
+    fx_session.commit()
+    with unittest.mock.patch(
+        "world_boss.app.tasks.signer.stage_transaction", return_value="tx_id"
+    ) as m, unittest.mock.patch("world_boss.app.tasks.client.chat_postMessage") as m2:
+        stage_transactions_with_countdown.delay(config.headless_url, [1, 2]).get(
+            timeout=30
+        )
+        # wait for subtask call
+        time.sleep(2)
+        assert m.call_count == len(fx_transactions)
+        m2.assert_called_once_with(
+            channel=config.slack_channel_id,
+            text=f"stage {len(fx_transactions)} transactions",
+        )

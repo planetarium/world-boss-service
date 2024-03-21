@@ -257,3 +257,7 @@ def get_jwt_auth_header() -> dict[str, str]:
         algorithm=config.headless_jwt_algorithm,
     )
     return {"Authorization": f"Bearer {encoded}"}
+
+
+def get_tx_delay_factor(index: int) -> int:
+    return 4 * (index // 4)
