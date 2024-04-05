@@ -8,6 +8,7 @@ from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardA
 from world_boss.app.raid import (
     get_assets,
     get_next_tx_nonce,
+    get_tx_delay_factor,
     list_tx_nonce,
     update_agent_address,
     write_ranking_rewards_csv,
@@ -216,3 +217,19 @@ def test_list_tx_nonce(fx_session, nonce_list: List[int]):
         fx_session.add(tx)
     fx_session.flush()
     assert list_tx_nonce(fx_session) == nonce_list
+
+
+@pytest.mark.parametrize(
+    "expected, index",
+    [
+        (0, 0),
+        (0, 1),
+        (0, 2),
+        (0, 3),
+        (4, 4),
+        (4, 5),
+        (8, 8),
+    ],
+)
+def test_get_tx_delay_factor(expected: int, index: int):
+    assert get_tx_delay_factor(index) == expected
