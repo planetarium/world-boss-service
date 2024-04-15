@@ -44,17 +44,15 @@ def test_count_users(celery_session_worker, httpx_mock: HTTPXMock):
         )
 
 
+@pytest.mark.parametrize("size", [100, 50])
 def test_get_ranking_rewards(
-    redisdb,
-    celery_session_worker,
-    httpx_mock: HTTPXMock,
-    fx_ranking_rewards,
+    redisdb, celery_session_worker, httpx_mock: HTTPXMock, fx_ranking_rewards, size: int
 ):
     raid_id = 1
     network_type = NetworkType.MAIN
     offset = 0
-    rewards_cache_key = f"world_boss_{raid_id}_{network_type}_{offset}_100"
-    addresses_cache_key = f"world_boss_agents_{raid_id}_{network_type}_{offset}_100"
+    rewards_cache_key = f"world_boss_{raid_id}_{network_type}_{offset}_{size}"
+    addresses_cache_key = f"world_boss_agents_{raid_id}_{network_type}_{offset}_{size}"
 
     # get from cache key
     cached_rewards: List[RankingRewardDictionary] = [
@@ -65,7 +63,7 @@ def test_get_ranking_rewards(
             },
             "rewards": fx_ranking_rewards,
         }
-        for i in range(0, 100)
+        for i in range(0, size)
     ]
 
     # get from service query
@@ -73,7 +71,7 @@ def test_get_ranking_rewards(
         {
             "raider": {
                 "address": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-                "ranking": 101,
+                "ranking": size + 1,
             },
             "rewards": fx_ranking_rewards,
         },
@@ -88,7 +86,7 @@ def test_get_ranking_rewards(
             },
             "rewards": fx_ranking_rewards,
         }
-        for i in range(0, 100)
+        for i in range(0, size)
     ]
     redisdb.set(rewards_cache_key, json.dumps(cached_rewards))
     httpx_mock.add_response(
@@ -112,18 +110,22 @@ def test_get_ranking_rewards(
     )
 
     with unittest.mock.patch("world_boss.app.tasks.client.files_upload_v2") as m:
-        get_ranking_rewards.delay("channel_id", raid_id, 101, 1).get(timeout=10)
+        get_ranking_rewards.delay("channel_id", raid_id, size + 1, 1, size).get(
+            timeout=10
+        )
         m.assert_called_once()
         # skip check file. because file is temp file.
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
         assert kwargs["channels"] == "channel_id"
-        assert kwargs["title"] == f"world_boss_{raid_id}_101_1_result"
-        assert kwargs["filename"] == f"world_boss_{raid_id}_101_1_result.csv"
+        assert kwargs["title"] == f"world_boss_{raid_id}_{size + 1}_1_{size}_result"
+        assert (
+            kwargs["filename"] == f"world_boss_{raid_id}_{size + 1}_1_{size}_result.csv"
+        )
     assert redisdb.exists(rewards_cache_key)
     assert redisdb.exists(addresses_cache_key)
-    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_100_1")
-    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_100_1")
+    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_{size}_1")
+    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_{size}_1")
 
 
 def test_get_ranking_rewards_error(
@@ -148,7 +150,7 @@ def test_get_ranking_rewards_error(
     with unittest.mock.patch(
         "world_boss.app.tasks.client.chat_postMessage"
     ) as m, pytest.raises(Exception):
-        get_ranking_rewards.delay("channel_id", raid_id, 101, 1).get(timeout=10)
+        get_ranking_rewards.delay("channel_id", raid_id, 101, 1, 100).get(timeout=10)
         m.assert_called_once()
         kwargs = m.call_args.kwargs
         assert (

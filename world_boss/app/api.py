@@ -87,7 +87,7 @@ async def generate_ranking_rewards_csv(
 ):
     values = text.split()
     raid_id, total_users, nonce = [int(v) for v in values]
-    task = get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce)
+    task = get_ranking_rewards.delay(channel_id, raid_id, total_users, nonce, 100)
     return JSONResponse(task.id)
 
 

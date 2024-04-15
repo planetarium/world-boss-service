@@ -71,13 +71,17 @@ def test_update_agent_address(
 
 
 @pytest.mark.parametrize("raid_id", [1, 2])
-@pytest.mark.parametrize("start_nonce, bottom, last_nonce", [(1, 100, 4), (2, 4, 2)])
+@pytest.mark.parametrize(
+    "start_nonce, bottom, size, last_nonce",
+    [(1, 100, 100, 4), (1, 100, 50, 8), (2, 4, 100, 2), (2, 4, 1, 17)],
+)
 def test_write_ranking_rewards_csv(
     tmp_path,
     fx_ranking_rewards,
     raid_id: int,
     start_nonce: int,
     bottom: int,
+    size: int,
     last_nonce: int,
 ):
     file_name = tmp_path / "test.csv"
@@ -94,9 +98,11 @@ def test_write_ranking_rewards_csv(
         }
         for i in range(0, bottom)
     ]
-    write_ranking_rewards_csv(file_name, reward_list, raid_id, start_nonce)
+    write_ranking_rewards_csv(file_name, reward_list, raid_id, start_nonce, size)
     with open(file_name, "r") as f:
         rows = f.readlines()
+        # header + fx_ranking_rewards * bottom
+        assert len(rows) == 1 + (bottom * 4)
         # check header
         assert (
             rows[0]

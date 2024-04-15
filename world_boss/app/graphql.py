@@ -78,10 +78,11 @@ class Mutation:
         season_id: int,
         total_users: int,
         start_nonce: int,
+        size: int,
         password: str,
     ) -> str:
         task = get_ranking_rewards.delay(
-            config.slack_channel_id, season_id, total_users, start_nonce
+            config.slack_channel_id, season_id, total_users, start_nonce, size
         )
         return task.id
 

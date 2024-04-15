@@ -69,8 +69,13 @@ def test_check_balance(fx_session, fx_test_client):
         assert result["data"]["checkBalance"] == expected
 
 
+@pytest.mark.parametrize("size", [100, 50])
 def test_generate_ranking_rewards_csv(
-    fx_test_client, celery_session_worker, httpx_mock: HTTPXMock, fx_ranking_rewards
+    fx_test_client,
+    celery_session_worker,
+    httpx_mock: HTTPXMock,
+    fx_ranking_rewards,
+    size: int,
 ):
     requested_rewards = [
         {
@@ -101,7 +106,7 @@ def test_generate_ranking_rewards_csv(
         },
     )
 
-    query = f'mutation {{ generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1, password: "{config.graphql_password}") }}'
+    query = f'mutation {{ generateRankingRewardsCsv(seasonId: 1, totalUsers: 1, startNonce: 1, password: "{config.graphql_password}", size: {size}) }}'
     with patch("world_boss.app.tasks.client.files_upload_v2") as m:
         req = fx_test_client.post("/graphql", json={"query": query})
         assert req.status_code == 200
@@ -114,8 +119,8 @@ def test_generate_ranking_rewards_csv(
         kwargs = m.call_args.kwargs
         assert kwargs["file"]
         assert kwargs["channels"] == config.slack_channel_id
-        assert kwargs["title"] == f"world_boss_1_1_1_result"
-        assert kwargs["filename"] == f"world_boss_1_1_1_result.csv"
+        assert kwargs["title"] == f"world_boss_1_1_1_{size}_result"
+        assert kwargs["filename"] == f"world_boss_1_1_1_{size}_result.csv"
 
 
 @pytest.mark.parametrize("has_header", [True, False])
