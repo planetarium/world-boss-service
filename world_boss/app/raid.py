@@ -119,6 +119,7 @@ def write_ranking_rewards_csv(
     reward_list: List[RankingRewardWithAgentDictionary],
     raid_id: int,
     start_nonce: int,
+    size: int,
 ):
     with open(file_name, "w") as f:
         writer = csv.writer(f)
@@ -152,7 +153,7 @@ def write_ranking_rewards_csv(
                         amount,
                         currency["ticker"],
                         currency["decimalPlaces"],
-                        start_nonce + int(i / 100),
+                        start_nonce + int(i / size),
                     ]
                 )
                 i += 1

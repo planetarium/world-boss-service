@@ -47,15 +47,15 @@ def count_users(channel_id: str, raid_id: int):
 
 @celery.task()
 def get_ranking_rewards(
-    channel_id: str, raid_id: int, total_count: int, start_nonce: int
+    channel_id: str, raid_id: int, total_count: int, start_nonce: int, size: int
 ):
     offset = 0
-    size = 100
     results: List[RankingRewardWithAgentDictionary] = []
+    payload_size = size
     while len(results) < total_count:
         try:
             result = data_provider_client.get_ranking_rewards(
-                raid_id, NetworkType.MAIN, offset, size
+                raid_id, NetworkType.MAIN, offset, payload_size
             )
         except Exception as e:
             client.chat_postMessage(
@@ -63,14 +63,18 @@ def get_ranking_rewards(
                 text=f"failed to get rewards from {config.data_provider_url} exc: {e}",
             )
             raise e
-        rewards = update_agent_address(result, raid_id, NetworkType.MAIN, offset, size)
+        rewards = update_agent_address(
+            result, raid_id, NetworkType.MAIN, offset, payload_size
+        )
         results.extend(reward for reward in rewards if reward not in results)
         offset = len(results)
-        size = min(size, total_count - offset)
+        payload_size = min(payload_size, total_count - offset)
     with NamedTemporaryFile(suffix=".csv") as temp_file:
         file_name = temp_file.name
-        write_ranking_rewards_csv(file_name, results, raid_id, start_nonce)
-        result_format = f"world_boss_{raid_id}_{total_count}_{start_nonce}_result"
+        write_ranking_rewards_csv(file_name, results, raid_id, start_nonce, size)
+        result_format = (
+            f"world_boss_{raid_id}_{total_count}_{start_nonce}_{size}_result"
+        )
         client.files_upload_v2(
             channels=channel_id,
             title=result_format,
