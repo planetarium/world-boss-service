@@ -26,18 +26,23 @@ from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
 class KmsWorldBossSigner:
     def __init__(self, key_id: str):
         self._key_id = key_id
+        self._cached_public_key = None
+        self._cached_address = None
 
     @property
     def public_key(self) -> bytes:
-        client = boto3.client("kms")
-        public_key_der = client.get_public_key(KeyId=self._key_id)["PublicKey"]
-        received_record, _ = der_decode(public_key_der, asn1Spec=SPKIRecord())
-
-        return received_record["subjectPublicKey"].asOctets()
+        if self._cached_public_key is None:
+            client = boto3.client("kms")
+            public_key_der = client.get_public_key(KeyId=self._key_id)["PublicKey"]
+            received_record, _ = der_decode(public_key_der, asn1Spec=SPKIRecord())
+            self._cached_public_key = received_record["subjectPublicKey"].asOctets()
+        return self._cached_public_key
 
     @property
     def address(self) -> str:
-        return ethereum_kms_signer.get_eth_address(self._key_id)
+        if self._cached_address is None:
+            self._cached_address = ethereum_kms_signer.get_eth_address(self._key_id)
+        return self._cached_address
 
     def _get_client(self, headless_url: str) -> Client:
         transport = RequestsHTTPTransport(
