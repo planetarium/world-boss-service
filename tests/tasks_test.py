@@ -203,9 +203,9 @@ def test_insert_world_boss_rewards(celery_session_worker, fx_session):
     tx.payload = "payload"
     fx_session.add(tx)
     fx_session.commit()
-    insert_world_boss_rewards.delay([r.split(",") for r in content.split("\n")]).get(
-        timeout=10
-    )
+    insert_world_boss_rewards.delay(
+        [r.split(",") for r in content.split("\n")], tx.signer
+    ).get(timeout=10)
 
     assert len(fx_session.query(Transaction).first().amounts) == 4
 

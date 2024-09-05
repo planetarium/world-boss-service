@@ -144,7 +144,7 @@ async def prepare_transfer_assets(
             exist_nonce,
         )
         for nonce in recipient_map
-    )(insert_world_boss_rewards.si(rows))
+    )(insert_world_boss_rewards.si(rows, signer.address))
     return JSONResponse(task.id)
 
 

@@ -135,7 +135,7 @@ class Mutation:
                 exist_nonce,
             )
             for nonce in recipient_map
-        )(insert_world_boss_rewards.si(rows))
+        )(insert_world_boss_rewards.si(rows, signer.address))
         return task.id
 
     @strawberry.mutation

@@ -100,11 +100,11 @@ def sign_transfer_assets(
 
 
 @celery.task()
-def insert_world_boss_rewards(rows: List[RecipientRow]):
+def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
     # ranking : world_boss_reward
     world_boss_rewards: dict[int, WorldBossReward] = {}
     with TaskSessionLocal() as db, db.no_autoflush:  # type: ignore
-        transactions = db.query(Transaction).filter_by(signer=signer.address)
+        transactions = db.query(Transaction).filter_by(signer=signer_address)
         # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in rows:
             # parse row
