@@ -34,7 +34,6 @@ def test_transfer_assets(fx_session) -> None:
         nonce,
         [recipient],
         "test",
-        "http://9c-internal-rpc-1.nine-chronicles.com/graphql",
         fx_session,
     )
     transaction = fx_session.query(Transaction).first()

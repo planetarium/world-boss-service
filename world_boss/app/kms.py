@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import typing
 
+import bencodex
 import boto3
 import ethereum_kms_signer  # type: ignore
 from ethereum_kms_signer.spki import SPKIRecord  # type: ignore
@@ -19,8 +20,9 @@ from sqlalchemy.orm import Session
 from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
-from world_boss.app.raid import get_jwt_auth_header
+from world_boss.app.raid import get_jwt_auth_header, get_transfer_assets_plain_value
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
+from world_boss.app.transaction import create_unsigned_tx
 
 
 class KmsWorldBossSigner:
@@ -55,7 +57,7 @@ class KmsWorldBossSigner:
         return Client(transport=transport, fetch_schema_from_transport=True)
 
     def _sign_and_save(
-        self, headless_url: str, unsigned_transaction: bytes, nonce: int, db: Session
+        self, unsigned_transaction: bytes, nonce: int, db: Session
     ) -> Transaction:
         account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
         msg_hash = hashlib.sha256(unsigned_transaction).digest()
@@ -68,30 +70,13 @@ class KmsWorldBossSigner:
         seq = SequenceOf(componentType=Integer())
         seq.extend([r, min(s, n - s)])
         signature = der_encode(seq)
-        signed_transaction = self._sign_transaction(
-            headless_url, unsigned_transaction, signature
-        )
+        signed_transaction = self._sign_transaction(unsigned_transaction, signature)
         return self._save_transaction(signed_transaction, nonce, db)
 
-    def _sign_transaction(
-        self, headless_url: str, unsigned_transaction: bytes, signature: bytes
-    ) -> bytes:
-        client = self._get_client(headless_url)
-        with client as session:
-            assert client.schema is not None
-            ds = DSLSchema(client.schema)
-            query = dsl_gql(
-                DSLQuery(
-                    ds.StandaloneQuery.transaction.select(
-                        ds.TransactionHeadlessQuery.signTransaction.args(
-                            unsignedTransaction=unsigned_transaction.hex(),
-                            signature=signature.hex(),
-                        )
-                    )
-                )
-            )
-            result = session.execute(query)
-            return bytes.fromhex(result["transaction"]["signTransaction"])
+    def _sign_transaction(self, unsigned_transaction: bytes, signature: bytes) -> bytes:
+        decoded = bencodex.loads(unsigned_transaction)
+        decoded[b"S"] = signature
+        return bencodex.dumps(decoded)
 
     def _save_transaction(
         self, signed_transaction: bytes, nonce, db: Session
@@ -112,31 +97,13 @@ class KmsWorldBossSigner:
         nonce: int,
         recipients: typing.List[Recipient],
         memo: str,
-        headless_url: str,
         db: Session,
     ) -> Transaction:
-        client = self._get_client(headless_url)
-        with client as session:
-            assert client.schema is not None
-            ds = DSLSchema(client.schema)
-            query = dsl_gql(
-                DSLQuery(
-                    ds.StandaloneQuery.actionTxQuery.args(
-                        publicKey=self.public_key.hex(),
-                        timestamp=time_stamp.isoformat(),
-                        nonce=nonce,
-                    ).select(
-                        ds.ActionTxQuery.transferAssets.args(
-                            sender=self.address, recipients=recipients, memo=memo
-                        )
-                    )
-                )
-            )
-            result = session.execute(query)
-            unsigned_transaction = bytes.fromhex(
-                result["actionTxQuery"]["transferAssets"]
-            )
-            return self._sign_and_save(headless_url, unsigned_transaction, nonce, db)
+        pv = get_transfer_assets_plain_value(self.address, recipients, memo)
+        unsigned_transaction = create_unsigned_tx(
+            "0x000000000000", self.public_key, self.address, nonce, pv, time_stamp
+        )
+        return self._sign_and_save(unsigned_transaction, nonce, db)
 
     def prepare_reward_assets(
         self, headless_url: str, assets: typing.List[AmountDictionary]

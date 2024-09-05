@@ -1,6 +1,7 @@
 import csv
 import datetime
 import json
+import typing
 from typing import List, Tuple, cast
 
 import httpx
@@ -17,6 +18,7 @@ from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.stubs import (
+    ActionPlainValue,
     AmountDictionary,
     CurrencyDictionary,
     RaiderWithAgentDictionary,
@@ -25,6 +27,7 @@ from world_boss.app.stubs import (
     Recipient,
     RecipientRow,
     RewardDictionary,
+    TransferAssetsValues,
 )
 
 
@@ -262,3 +265,32 @@ def get_jwt_auth_header() -> dict[str, str]:
 
 def get_tx_delay_factor(index: int) -> int:
     return 4 * (index // 4)
+
+
+def get_transfer_assets_plain_value(
+    sender: str, recipients: typing.List[Recipient], memo: str
+) -> ActionPlainValue:
+    values: TransferAssetsValues = {
+        "sender": bytes.fromhex(sender.replace("0x", "")),
+        "recipients": [],
+    }
+    for r in recipients:
+        amount = r["amount"]
+        decimal_places = amount["decimalPlaces"]
+        values["recipients"].append(
+            [
+                {
+                    "decimalPlaces": decimal_places.to_bytes(1, "big"),
+                    "minters": None,
+                    "ticker": amount["ticker"],
+                },
+                amount["quantity"] * 10**decimal_places,
+            ]
+        )
+    if memo is not None:
+        values["memo"] = memo
+    pv: ActionPlainValue = {
+        "type_id": "transfer_assets3",
+        "values": values,
+    }
+    return pv

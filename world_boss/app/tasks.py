@@ -96,7 +96,7 @@ def sign_transfer_assets(
     with TaskSessionLocal() as db:
         if nonce > max_nonce or nonce not in exist_nonce:
             time_stamp = datetime.fromisoformat(time_string)
-            signer.transfer_assets(time_stamp, nonce, recipients, memo, url, db)
+            signer.transfer_assets(time_stamp, nonce, recipients, memo, db)
 
 
 @celery.task()
