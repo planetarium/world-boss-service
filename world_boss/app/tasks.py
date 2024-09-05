@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 import bencodex
 from celery import Celery, chord
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, insert
 from sqlalchemy.orm import sessionmaker
 
 from world_boss.app.config import config
@@ -102,9 +102,10 @@ def sign_transfer_assets(
 @celery.task()
 def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
     # ranking : world_boss_reward
-    world_boss_rewards: dict[int, WorldBossReward] = {}
+    world_boss_rewards: dict[int, dict] = {}
     with TaskSessionLocal() as db, db.no_autoflush:  # type: ignore
         transactions = db.query(Transaction).filter_by(signer=signer_address)
+        world_boss_reward_amounts: dict[int, list[dict]] = {}
         # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in rows:
             # parse row
@@ -121,23 +122,34 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
             if world_boss_rewards.get(ranking):
                 world_boss_reward = world_boss_rewards[ranking]
             else:
-                world_boss_reward = WorldBossReward()
-                world_boss_reward.raid_id = raid_id
-                world_boss_reward.ranking = ranking
-                world_boss_reward.agent_address = agent_address
-                world_boss_reward.avatar_address = avatar_address
+                world_boss_reward = {
+                    "raid_id": raid_id,
+                    "ranking": ranking,
+                    "agent_address": agent_address,
+                    "avatar_address": avatar_address,
+                }
                 world_boss_rewards[ranking] = world_boss_reward
 
             # create world_boss_reward_amount
-            world_boss_reward_amount = WorldBossRewardAmount()
-            world_boss_reward_amount.amount = amount
-            world_boss_reward_amount.decimal_places = decimal_places
-            world_boss_reward_amount.ticker = ticker
-            world_boss_reward_amount.reward = world_boss_reward
-            world_boss_reward_amount.transaction = transactions.filter_by(
-                nonce=nonce
-            ).one()
-            db.add(world_boss_reward_amount)
+            world_boss_reward_amount = {
+                "amount": amount,
+                "decimal_places": decimal_places,
+                "ticker": ticker,
+                "tx_id": transactions.filter_by(nonce=nonce).one().tx_id,
+            }
+            if not world_boss_reward_amounts.get(ranking):
+                world_boss_reward_amounts[ranking] = []
+            world_boss_reward_amounts[ranking].append(world_boss_reward_amount)
+        db.execute(insert(WorldBossReward), world_boss_rewards.values())
+        result = db.query(WorldBossReward.ranking, WorldBossReward.id).filter_by(
+            raid_id=raid_id
+        )
+        values = []
+        for k, reward_id in result:
+            for amounts in world_boss_reward_amounts[k]:
+                amounts["reward_id"] = reward_id
+                values.append(amounts)
+        db.execute(insert(WorldBossRewardAmount), values)
         db.commit()
 
 
