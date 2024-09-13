@@ -104,12 +104,15 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
     # ranking : world_boss_reward
     world_boss_rewards: dict[int, dict] = {}
     with TaskSessionLocal() as db, db.no_autoflush:  # type: ignore
+        raid_id = int(rows[0][0])
+        exist_rankings = [
+            r for r, in db.query(WorldBossReward.ranking).filter_by(raid_id=raid_id)
+        ]
         transactions = db.query(Transaction).filter_by(signer=signer_address)
         world_boss_reward_amounts: dict[int, list[dict]] = {}
         # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
         for row in rows:
             # parse row
-            raid_id = int(row[0])
             ranking = int(row[1])
             agent_address = row[2]
             avatar_address = row[3]
@@ -119,9 +122,7 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
             nonce = int(row[7])
 
             # get or create world_boss_reward
-            if world_boss_rewards.get(ranking):
-                world_boss_reward = world_boss_rewards[ranking]
-            else:
+            if ranking not in exist_rankings and not world_boss_rewards.get(ranking):
                 world_boss_reward = {
                     "raid_id": raid_id,
                     "ranking": ranking,
@@ -140,17 +141,19 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
             if not world_boss_reward_amounts.get(ranking):
                 world_boss_reward_amounts[ranking] = []
             world_boss_reward_amounts[ranking].append(world_boss_reward_amount)
-        db.execute(insert(WorldBossReward), world_boss_rewards.values())
-        result = db.query(WorldBossReward.ranking, WorldBossReward.id).filter_by(
-            raid_id=raid_id
-        )
+        if world_boss_rewards:
+            db.execute(insert(WorldBossReward), world_boss_rewards.values())
+        result = db.query(WorldBossReward).filter_by(raid_id=raid_id)
         values = []
-        for k, reward_id in result:
-            for amounts in world_boss_reward_amounts[k]:
-                amounts["reward_id"] = reward_id
-                values.append(amounts)
-        db.execute(insert(WorldBossRewardAmount), values)
-        db.commit()
+        for reward in result:
+            exist_tickers = [i.ticker for i in reward.amounts]
+            for amounts in world_boss_reward_amounts[reward.ranking]:
+                if amounts["ticker"] not in exist_tickers:
+                    amounts["reward_id"] = reward.id
+                    values.append(amounts)
+        if values:
+            db.execute(insert(WorldBossRewardAmount), values)
+            db.commit()
 
 
 @celery.task()
