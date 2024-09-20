@@ -62,10 +62,14 @@ class DataProviderClient:
                 {"raidId": raid_id, "offset": offset, "limit": limit},
             )
             if result.get("errors"):
-                raise Exception(result["errors"][0]["message"])
+                raise RankingRewardsException(result["errors"][0]["message"])
             rewards = result["data"]["worldBossRankingRewards"]
             set_to_cache(cache_key, json.dumps(rewards))
         return rewards
+
+
+class RankingRewardsException(Exception):
+    pass
 
 
 data_provider_client = DataProviderClient()

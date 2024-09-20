@@ -9,7 +9,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from world_boss.app.orm import Base
 from world_boss.app.schemas import WorldBossRewardAmountSchema, WorldBossRewardSchema
@@ -25,9 +25,9 @@ class WorldBossRewardAmount(Base):
     tx_id: Mapped[str] = mapped_column(
         String, ForeignKey("transaction.tx_id"), nullable=False
     )
-    transaction = relationship("Transaction", backref=backref("amounts", lazy=True))
+    transaction = relationship("Transaction", back_populates="amounts")
     reward_id = Column(Integer, ForeignKey("world_boss_reward.id"), nullable=False)
-    reward = relationship("WorldBossReward", backref=backref("amounts", lazy=True))
+    reward = relationship("WorldBossReward", back_populates="amounts")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
@@ -56,7 +56,7 @@ class WorldBossReward(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
-    # amounts = relationship('WorldBossRewardAmount', back_populates='reward')
+    amounts = relationship("WorldBossRewardAmount", back_populates="reward")
 
     __table_args__ = (
         UniqueConstraint(raid_id, avatar_address, agent_address),
@@ -87,5 +87,6 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow
     )
+    amounts = relationship("WorldBossRewardAmount", back_populates="transaction")
 
     __table_args__ = (UniqueConstraint(signer, nonce),)

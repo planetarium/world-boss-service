@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from tempfile import NamedTemporaryFile
 from typing import List, Tuple
@@ -7,6 +8,7 @@ from celery import Celery, chord
 from sqlalchemy import create_engine, insert
 from sqlalchemy.orm import sessionmaker
 
+from world_boss.app.cache import cache_exists, set_to_cache
 from world_boss.app.config import config
 from world_boss.app.data_provider import data_provider_client
 from world_boss.app.enums import NetworkType
@@ -14,7 +16,12 @@ from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
     get_assets,
+    get_latest_raid_id,
+    get_next_month_last_day,
+    get_next_tx_nonce,
+    get_reward_count,
     get_tx_delay_factor,
+    row_to_recipient,
     update_agent_address,
     write_ranking_rewards_csv,
     write_tx_result_csv,
@@ -22,9 +29,11 @@ from world_boss.app.raid import (
 from world_boss.app.slack import client
 from world_boss.app.stubs import (
     CurrencyDictionary,
+    RaiderWithAgentDictionary,
     RankingRewardWithAgentDictionary,
     Recipient,
     RecipientRow,
+    RewardDictionary,
 )
 
 celery = Celery()
@@ -229,3 +238,150 @@ def stage_transactions_with_countdown(headless_url: str, nonce_list: List[int]):
             config.slack_channel_id, f"stage {len(nonce_list)} transactions"
         )
     )
+
+
+@celery.task()
+def check_season():
+    with TaskSessionLocal() as db:
+        raid_id = get_latest_raid_id(db)
+        total_count = data_provider_client.get_total_users_count(raid_id)
+        sync_count = offset = get_reward_count(db, raid_id)
+        # 최신 시즌 동기화 처리
+        if sync_count == total_count:
+            raid_id += 1
+            offset = 0
+            upload_tx_list(raid_id)
+        save_ranking_rewards(
+            raid_id=raid_id, size=500, offset=offset, signer_address=signer.address
+        )
+
+
+@celery.task()
+def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: str):
+    results: List[RankingRewardWithAgentDictionary] = []
+    payload_size = size
+    time_stamp = get_next_month_last_day()
+    signed_transactions: List[Transaction] = []
+    memo = "world boss ranking rewards by world boss signer"
+    with TaskSessionLocal() as db:
+        start_nonce = get_next_tx_nonce(db)
+        result = data_provider_client.get_ranking_rewards(
+            raid_id, NetworkType.MAIN, offset, payload_size
+        )
+        rewards = update_agent_address(
+            result, raid_id, NetworkType.MAIN, offset, payload_size
+        )
+        results.extend(reward for reward in rewards if reward not in results)
+        nonce_rows_map: dict[int, List[RecipientRow]] = {}
+        rows: List[RecipientRow] = []
+        i = 0
+        for r in results:
+            raider: RaiderWithAgentDictionary = r["raider"]
+            ranking = raider["ranking"]
+            avatar_address = raider["address"]
+            reward_dict_list: List[RewardDictionary] = r["rewards"]
+            for reward_dict in reward_dict_list:
+                nonce = start_nonce + int(i / size)
+                if not nonce_rows_map.get(nonce):
+                    nonce_rows_map[nonce] = []
+                currency: CurrencyDictionary = reward_dict["currency"]
+                amount = reward_dict["quantity"]
+                row: RecipientRow = [
+                    str(raid_id),
+                    str(ranking),
+                    raider["agent_address"],
+                    avatar_address,
+                    amount,
+                    currency["ticker"],
+                    str(currency["decimalPlaces"]),
+                    str(nonce),
+                ]
+                rows.append(row)
+                nonce_rows_map[nonce].append(row)
+                i += 1
+        for n in nonce_rows_map.keys():
+            recipient_rows = nonce_rows_map[n]
+            recipients = [row_to_recipient(r) for r in recipient_rows]
+            tx = signer.transfer_assets(time_stamp, n, recipients, memo, db)
+            signed_transactions.append(tx)
+        insert_world_boss_rewards(rows, signer_address)
+
+
+@celery.task()
+def upload_tx_list(raid_id: int):
+    cache_key = f"{raid_id}_uploaded"
+    # 중복 업로드 방지
+    if cache_exists(cache_key):
+        return
+    with TaskSessionLocal() as db:
+        results: dict[str, RankingRewardWithAgentDictionary] = {}
+        query = (
+            db.query(
+                WorldBossReward.avatar_address,
+                WorldBossReward.ranking,
+                WorldBossReward.agent_address,
+                WorldBossRewardAmount.decimal_places,
+                WorldBossRewardAmount.ticker,
+                WorldBossRewardAmount.amount,
+                Transaction.nonce,
+            )
+            .join(
+                WorldBossRewardAmount,
+                WorldBossReward.id == WorldBossRewardAmount.reward_id,
+            )
+            .join(Transaction, Transaction.tx_id == WorldBossRewardAmount.tx_id)
+            .filter(WorldBossReward.raid_id == raid_id)
+            .order_by(Transaction.nonce, WorldBossReward.ranking)
+        )
+        total_count = (
+            db.query(WorldBossReward.avatar_address).filter_by(raid_id=raid_id).count()
+        )
+        size = 50
+        start_nonce = query.first().nonce
+        channel_id = config.slack_channel_id
+        for (
+            avatar_address,
+            ranking,
+            agent_address,
+            decimal_places,
+            ticker,
+            amount,
+            _,
+        ) in query:
+            r: RankingRewardWithAgentDictionary
+            reward_dictionary: RewardDictionary = {
+                "currency": {
+                    "decimalPlaces": decimal_places,
+                    "minters": None,
+                    "ticker": ticker,
+                },
+                "quantity": str(amount),
+            }
+            if results.get(avatar_address):
+                r = results[avatar_address]
+            else:
+                r = {
+                    "raider": {
+                        "address": avatar_address,
+                        "ranking": ranking,
+                        "agent_address": agent_address,
+                    },
+                    "rewards": [],
+                }
+            r["rewards"].append(reward_dictionary)
+            results[avatar_address] = r
+        with NamedTemporaryFile(suffix=".csv") as temp_file:
+            file_name = temp_file.name
+            values = list(results.values())
+            write_ranking_rewards_csv(file_name, values, raid_id, start_nonce, size)
+            result_format = (
+                f"world_boss_{raid_id}_{total_count}_{start_nonce}_{size}_result"
+            )
+            client.files_upload_v2(
+                channels=channel_id,
+                title=result_format,
+                filename=f"{result_format}.csv",
+                file=file_name,
+                initial_comment="test",
+            )
+            set_to_cache(cache_key, json.dumps(values))

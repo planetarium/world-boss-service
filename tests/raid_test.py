@@ -1,8 +1,11 @@
-from datetime import datetime, timezone
+import typing
+from datetime import date, datetime, timezone
 from typing import List
+from unittest.mock import patch
 
 import bencodex
 import pytest
+from sqlalchemy.orm import Session
 
 from world_boss.app.cache import cache_exists
 from world_boss.app.enums import NetworkType
@@ -11,7 +14,10 @@ from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardA
 from world_boss.app.raid import (
     create_unsigned_tx,
     get_assets,
+    get_latest_raid_id,
+    get_next_month_last_day,
     get_next_tx_nonce,
+    get_reward_count,
     get_transfer_assets_plain_value,
     get_tx_delay_factor,
     list_tx_nonce,
@@ -344,3 +350,40 @@ def test_create_unsigned_tx(
         b"u": [],
     }
     assert bencodex.dumps(expected) == actual
+
+
+@pytest.mark.parametrize("season, expected", [(None, 1), (1, 1), (2, 2)])
+def test_get_latest_season(
+    fx_session: Session, season: typing.Optional[int], expected: int
+):
+    if season:
+        reward = WorldBossReward()
+        reward.raid_id = season
+        avatar_address = "avatar_address"
+        agent_address = "agent_address"
+        reward.avatar_address = avatar_address
+        reward.agent_address = agent_address
+        reward.ranking = 1
+        fx_session.add(reward)
+        fx_session.commit()
+    assert get_latest_raid_id(fx_session) == expected
+
+
+def test_get_reward_count(fx_session: Session):
+    reward = WorldBossReward()
+    reward.raid_id = 1
+    avatar_address = "avatar_address"
+    agent_address = "agent_address"
+    reward.avatar_address = avatar_address
+    reward.agent_address = agent_address
+    reward.ranking = 1
+    fx_session.add(reward)
+    fx_session.commit()
+    assert get_reward_count(fx_session, 1) == 1
+    assert get_reward_count(fx_session, 2) == 0
+
+
+def test_get_next_month_last_day():
+    with patch("datetime.date") as m:
+        m.today.return_value = date(2024, 9, 19)
+        assert get_next_month_last_day() == datetime(2024, 10, 31, tzinfo=timezone.utc)

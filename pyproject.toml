@@ -34,6 +34,7 @@ strawberry-graphql = {extras = ["fastapi"], version = "^0.215.1"}
 gql = {extras = ["aiohttp", "requests"], version = "^3.4.1"}
 pyjwt = "^2.8.0"
 types-requests = "^2.31.0.20240125"
+apscheduler = "^3.10.4"
 
 
 [tool.poetry.group.dev.dependencies]

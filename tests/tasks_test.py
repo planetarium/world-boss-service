@@ -15,11 +15,13 @@ from world_boss.app.stubs import (
     RankingRewardWithAgentDictionary,
 )
 from world_boss.app.tasks import (
+    check_season,
     check_signer_balance,
     count_users,
     get_ranking_rewards,
     insert_world_boss_rewards,
     query_tx_result,
+    save_ranking_rewards,
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
@@ -367,3 +369,71 @@ def test_stage_transactions_with_countdown(
             channel=config.slack_channel_id,
             text=f"stage {len(fx_transactions)} transactions",
         )
+
+
+def test_check_season(redisdb, celery_session_worker, fx_session, httpx_mock):
+    raid_id = 1
+    network_type = NetworkType.MAIN
+    offset = 0
+    check_season.delay().get(timeout=10)
+    httpx_mock.add_response(
+        method="POST",
+        url=config.data_provider_url,
+        json={"data": {"worldBossTotalUsers": 20000}},
+    )
+
+
+@pytest.mark.parametrize("exist", [True, False])
+def test_save_ranking_rewards(
+    redisdb,
+    celery_session_worker,
+    httpx_mock: HTTPXMock,
+    fx_ranking_rewards,
+    fx_session,
+    exist: bool,
+):
+    raid_id = 1
+    network_type = NetworkType.MAIN
+
+    # get from service query
+    requested_rewards: List[RankingRewardDictionary] = [
+        {
+            "raider": {
+                "address": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
+                "ranking": 2,
+            },
+            "rewards": fx_ranking_rewards,
+        },
+    ]
+    httpx_mock.add_response(
+        method="POST",
+        url=config.data_provider_url,
+        json={"data": {"worldBossRankingRewards": requested_rewards}},
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=config.headless_url,
+        json={
+            "data": {
+                "stateQuery": {
+                    "arg01A0b412721b00bFb5D619378F8ab4E4a97646Ca": {
+                        "agentAddress": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
+                    },
+                }
+            }
+        },
+    )
+    if exist:
+        wb = WorldBossReward()
+        wb.ranking = 2
+        wb.avatar_address = "01A0b412721b00bFb5D619378F8ab4E4a97646Ca"
+        wb.agent_address = "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52"
+        wb.raid_id = raid_id
+        fx_session.add(wb)
+        fx_session.commit()
+    save_ranking_rewards(raid_id, 500, 1, signer.address)
+    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
+    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
+    assert fx_session.query(Transaction).filter_by(signer=signer.address).count() == 1
+    assert fx_session.query(WorldBossReward).filter_by(raid_id=raid_id).count() == 1
+    assert fx_session.query(WorldBossRewardAmount).count() == len(fx_ranking_rewards)

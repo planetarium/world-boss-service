@@ -1,3 +1,4 @@
+import calendar
 import csv
 import datetime
 import json
@@ -357,3 +358,34 @@ def get_genesis_block_hash(planet_id: str) -> bytes:
         raise ValueError("Invalid planet id")
 
     return switcher[planet_id]
+
+
+def get_latest_raid_id(db: Session) -> int:
+    season = db.query(func.max(WorldBossReward.raid_id)).scalar()
+    if season is None:
+        return 1
+    return season
+
+
+def get_reward_count(db: Session, raid_id: int) -> int:
+    return (
+        db.query(func.count(WorldBossReward.ranking))
+        .filter_by(raid_id=raid_id)
+        .scalar()
+    )
+
+
+def get_next_month_last_day() -> datetime.datetime:
+    # Today's date
+    today = datetime.date.today()
+
+    # Calculating the year and month of the next month
+    next_month_year = today.year + (today.month // 12)
+    next_month = (today.month % 12) + 1
+
+    # Getting the last day of the next month
+    last_day = calendar.monthrange(next_month_year, next_month)[1]
+    last_date = datetime.datetime(
+        next_month_year, next_month, last_day, tzinfo=datetime.timezone.utc
+    )
+    return last_date
