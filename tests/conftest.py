@@ -10,7 +10,7 @@ from starlette.testclient import TestClient
 from world_boss.app.config import config
 from world_boss.app.models import Transaction
 from world_boss.app.orm import Base, SessionLocal, engine
-from world_boss.app.stubs import RewardDictionary
+from world_boss.app.stubs import ActionPlainValue, RewardDictionary
 from world_boss.app.tasks import celery
 from world_boss.wsgi import create_app
 
@@ -165,3 +165,38 @@ def fx_mainnet_transactions() -> typing.List[Transaction]:
         tx.signer = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
         transactions.append(tx)
     return transactions
+
+
+@pytest.fixture()
+def fx_transfer_assets_plain_value() -> ActionPlainValue:
+    return {
+        "type_id": "transfer_assets3",
+        "values": {
+            "sender": bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            "recipients": [
+                [
+                    bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+                    [
+                        {
+                            "decimalPlaces": b"\x12",
+                            "minters": None,
+                            "ticker": "CRYSTAL",
+                        },
+                        10000000000000000000,
+                    ],
+                ],
+                [
+                    bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+                    [
+                        {
+                            "decimalPlaces": b"\x00",
+                            "minters": None,
+                            "ticker": "RUNESTONE_FENRIR1",
+                        },
+                        100,
+                    ],
+                ],
+            ],
+            "memo": "memo",
+        },
+    }

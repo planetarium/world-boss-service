@@ -20,9 +20,12 @@ from sqlalchemy.orm import Session
 from world_boss.app.config import config
 from world_boss.app.enums import NetworkType
 from world_boss.app.models import Transaction
-from world_boss.app.raid import get_jwt_auth_header, get_transfer_assets_plain_value
+from world_boss.app.raid import (
+    create_unsigned_tx,
+    get_jwt_auth_header,
+    get_transfer_assets_plain_value,
+)
 from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
-from world_boss.app.transaction import create_unsigned_tx
 
 
 class KmsWorldBossSigner:
@@ -101,7 +104,7 @@ class KmsWorldBossSigner:
     ) -> Transaction:
         pv = get_transfer_assets_plain_value(self.address, recipients, memo)
         unsigned_transaction = create_unsigned_tx(
-            "0x000000000000", self.public_key, self.address, nonce, pv, time_stamp
+            config.planet_id, self.public_key, self.address, nonce, pv, time_stamp
         )
         return self._sign_and_save(unsigned_transaction, nonce, db)
 

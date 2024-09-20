@@ -1,13 +1,18 @@
+from datetime import datetime, timezone
 from typing import List
 
+import bencodex
 import pytest
 
 from world_boss.app.cache import cache_exists
 from world_boss.app.enums import NetworkType
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
+    create_unsigned_tx,
     get_assets,
     get_next_tx_nonce,
+    get_transfer_assets_plain_value,
     get_tx_delay_factor,
     list_tx_nonce,
     update_agent_address,
@@ -15,9 +20,12 @@ from world_boss.app.raid import (
     write_tx_result_csv,
 )
 from world_boss.app.stubs import (
+    ActionPlainValue,
     AmountDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
+    Recipient,
+    TransferAssetsValues,
 )
 
 
@@ -239,3 +247,100 @@ def test_list_tx_nonce(fx_session, nonce_list: List[int]):
 )
 def test_get_tx_delay_factor(expected: int, index: int):
     assert get_tx_delay_factor(index) == expected
+
+
+@pytest.mark.parametrize("memo", ["memo", None])
+def test_get_transfer_assets_plain_value(memo: str):
+    sender = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    recipients: List[Recipient] = [
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 10,
+                "decimalPlaces": 18,
+                "ticker": "CRYSTAL",
+            },
+        },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "RUNESTONE_FENRIR1",
+            },
+        },
+    ]
+    plain_value: ActionPlainValue = get_transfer_assets_plain_value(
+        sender, recipients, memo
+    )
+    assert plain_value["type_id"] == "transfer_assets3"
+    values: TransferAssetsValues = plain_value["values"]
+    assert values["sender"] == bytes.fromhex(sender.replace("0x", ""))
+    assert values["recipients"] == [
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                {
+                    "decimalPlaces": b"\x12",
+                    "minters": None,
+                    "ticker": "CRYSTAL",
+                },
+                10000000000000000000,
+            ],
+        ],
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                {
+                    "decimalPlaces": b"\x00",
+                    "minters": None,
+                    "ticker": "RUNESTONE_FENRIR1",
+                },
+                100,
+            ],
+        ],
+    ]
+    assert values.get("memo") == memo
+
+
+@pytest.mark.parametrize(
+    "planet_id, genesis",
+    [
+        (
+            "0x000000000000",
+            "4582250d0da33b06779a8475d283d5dd210c683b9b999d74d03fac4f58fa6bce",
+        ),
+        (
+            "0x000000000001",
+            "729fa26958648a35b53e8e3905d11ec53b1b4929bf5f499884aed7df616f5913",
+        ),
+    ],
+)
+def test_create_unsigned_tx(
+    planet_id: str, genesis: str, fx_transfer_assets_plain_value
+):
+    public_key = signer.public_key
+    address = signer.address
+    actual = create_unsigned_tx(
+        planet_id,
+        public_key,
+        address,
+        1,
+        fx_transfer_assets_plain_value,
+        datetime(2024, 9, 30, tzinfo=timezone.utc),
+    )
+    expected = {
+        b"a": [fx_transfer_assets_plain_value],
+        b"g": bytes.fromhex(genesis),
+        b"l": 4,
+        b"m": [
+            {"decimalPlaces": b"\x12", "minters": None, "ticker": "Mead"},
+            1000000000000000000,
+        ],
+        b"n": 1,
+        b"p": public_key,
+        b"s": bytes.fromhex(address.replace("0x", "")),
+        b"t": "2024-09-30T00:00:00.000000Z",
+        b"u": [],
+    }
+    assert bencodex.dumps(expected) == actual

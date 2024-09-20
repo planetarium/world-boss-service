@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     headless_jwt_secret: str
     headless_jwt_iss: str
     headless_jwt_algorithm: str
+    planet_id: str
 
     class Config:
         env_file = ".env"
@@ -68,6 +69,7 @@ class Settings(BaseSettings):
             "headless_jwt_secret": {"env": "HEADLESS_JWT_SECRET"},
             "headless_jwt_iss": {"env": "HEADLESS_JWT_ISS"},
             "headless_jwt_algorithm": {"env": "HEADLESS_JWT_ALGORITHM"},
+            "planet_id": {"env": "PLANET_ID"},
         }
 
 
