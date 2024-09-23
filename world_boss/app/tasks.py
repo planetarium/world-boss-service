@@ -248,9 +248,9 @@ def check_season():
         sync_count = offset = get_reward_count(db, raid_id)
         # 최신 시즌 동기화 처리
         if sync_count == total_count:
+            upload_tx_list(raid_id)
             raid_id += 1
             offset = 0
-            upload_tx_list(raid_id)
         save_ranking_rewards(
             raid_id=raid_id, size=500, offset=offset, signer_address=signer.address
         )
