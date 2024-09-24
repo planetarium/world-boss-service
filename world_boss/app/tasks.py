@@ -15,13 +15,13 @@ from world_boss.app.enums import NetworkType
 from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
+    bulk_insert_transactions,
     get_assets,
     get_latest_raid_id,
     get_next_month_last_day,
     get_next_tx_nonce,
     get_reward_count,
     get_tx_delay_factor,
-    row_to_recipient,
     update_agent_address,
     write_ranking_rewards_csv,
     write_tx_result_csv,
@@ -262,7 +262,6 @@ def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: s
     results: List[RankingRewardWithAgentDictionary] = []
     payload_size = size
     time_stamp = get_next_month_last_day()
-    signed_transactions: List[Transaction] = []
     memo = "world boss ranking rewards by world boss signer"
     with TaskSessionLocal() as db:
         start_nonce = get_next_tx_nonce(db)
@@ -300,12 +299,7 @@ def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: s
                 rows.append(row)
                 nonce_rows_map[nonce].append(row)
                 i += 1
-        for n in nonce_rows_map.keys():
-            recipient_rows = nonce_rows_map[n]
-            recipients = [row_to_recipient(r) for r in recipient_rows]
-            tx = signer.transfer_assets(time_stamp, n, recipients, memo, db)
-            signed_transactions.append(tx)
-        insert_world_boss_rewards(rows, signer_address)
+        bulk_insert_transactions(rows, nonce_rows_map, time_stamp, db, memo)
 
 
 @celery.task()

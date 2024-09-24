@@ -1,6 +1,7 @@
 import calendar
 import csv
 import datetime
+import hashlib
 import json
 import typing
 from typing import List, Tuple, cast
@@ -10,7 +11,7 @@ import httpx
 import jwt
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import func
+from sqlalchemy import func, insert
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
@@ -389,3 +390,88 @@ def get_next_month_last_day() -> datetime.datetime:
         next_month_year, next_month, last_day, tzinfo=datetime.timezone.utc
     )
     return last_date
+
+
+def bulk_insert_transactions(
+    rows: List[RecipientRow],
+    nonce_rows_map: dict[int, List[RecipientRow]],
+    time_stamp: datetime.datetime,
+    db: Session,
+    signer,
+    memo: typing.Optional[str] = None,
+):
+    # ranking : world_boss_reward
+    world_boss_rewards: dict[int, dict] = {}
+    signer_address = signer.address
+    tx_values: List[dict] = []
+    tx_ids: dict[int, str] = {}
+    for n in nonce_rows_map.keys():
+        recipient_rows = nonce_rows_map[n]
+        recipients = [row_to_recipient(r) for r in recipient_rows]
+        pv = get_transfer_assets_plain_value(signer_address, recipients, memo)
+        unsigned_transaction = create_unsigned_tx(
+            config.planet_id, signer.public_key, signer_address, n, pv, time_stamp
+        )
+        signed_transaction = signer.sign(unsigned_transaction, n)
+        tx_id = hashlib.sha256(signed_transaction).hexdigest()
+        tx_values.append(
+            {
+                "tx_id": tx_id,
+                "nonce": n,
+                "signer": signer_address,
+                "payload": signed_transaction.hex(),
+                "tx_result": "CREATED",
+            }
+        )
+        tx_ids[n] = tx_id
+    db.execute(insert(Transaction), tx_values)
+    raid_id = int(rows[0][0])
+    exist_rankings = [
+        r for r, in db.query(WorldBossReward.ranking).filter_by(raid_id=raid_id)
+    ]
+    world_boss_reward_amounts: dict[int, list[dict]] = {}
+    # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
+    for row in rows:
+        # parse row
+        ranking = int(row[1])
+        agent_address = row[2]
+        avatar_address = row[3]
+        amount = int(row[4])
+        ticker = row[5]
+        decimal_places = int(row[6])
+        nonce = int(row[7])
+
+        # get or create world_boss_reward
+        if ranking not in exist_rankings and not world_boss_rewards.get(ranking):
+            world_boss_reward = {
+                "raid_id": raid_id,
+                "ranking": ranking,
+                "agent_address": agent_address,
+                "avatar_address": avatar_address,
+            }
+            world_boss_rewards[ranking] = world_boss_reward
+
+        # create world_boss_reward_amount
+        world_boss_reward_amount = {
+            "amount": amount,
+            "decimal_places": decimal_places,
+            "ticker": ticker,
+            "tx_id": tx_ids[nonce],
+        }
+        if not world_boss_reward_amounts.get(ranking):
+            world_boss_reward_amounts[ranking] = []
+        world_boss_reward_amounts[ranking].append(world_boss_reward_amount)
+    if world_boss_rewards:
+        db.execute(insert(WorldBossReward), world_boss_rewards.values())
+    result = db.query(WorldBossReward).filter_by(raid_id=raid_id)
+    values = []
+    for reward in result:
+        exist_tickers = [i.ticker for i in reward.amounts]
+        if world_boss_rewards.get(reward.ranking):
+            for amounts in world_boss_reward_amounts[reward.ranking]:
+                if amounts["ticker"] not in exist_tickers:
+                    amounts["reward_id"] = reward.id
+                    values.append(amounts)
+    if values:
+        db.execute(insert(WorldBossRewardAmount), values)
+        db.commit()

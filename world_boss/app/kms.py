@@ -94,6 +94,20 @@ class KmsWorldBossSigner:
         db.commit()
         return transaction
 
+    def sign(self, unsigned_transaction: bytes, nonce: int) -> bytes:
+        account = ethereum_kms_signer.kms.BasicKmsAccount(self._key_id, self.address)
+        msg_hash = hashlib.sha256(unsigned_transaction).digest()
+        _, r, s = account.sign_msg_hash(msg_hash).vrs
+
+        n = int.from_bytes(
+            base64.b64decode("/////////////////////rqu3OavSKA7v9JejNA2QUE="), "big"
+        )
+
+        seq = SequenceOf(componentType=Integer())
+        seq.extend([r, min(s, n - s)])
+        signature = der_encode(seq)
+        return self._sign_transaction(unsigned_transaction, signature)
+
     def transfer_assets(
         self,
         time_stamp: datetime.datetime,

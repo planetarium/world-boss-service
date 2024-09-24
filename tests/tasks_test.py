@@ -15,7 +15,6 @@ from world_boss.app.stubs import (
     RankingRewardWithAgentDictionary,
 )
 from world_boss.app.tasks import (
-    check_season,
     check_signer_balance,
     count_users,
     get_ranking_rewards,
@@ -369,18 +368,6 @@ def test_stage_transactions_with_countdown(
             channel=config.slack_channel_id,
             text=f"stage {len(fx_transactions)} transactions",
         )
-
-
-def test_check_season(redisdb, celery_session_worker, fx_session, httpx_mock):
-    raid_id = 1
-    network_type = NetworkType.MAIN
-    offset = 0
-    check_season.delay().get(timeout=10)
-    httpx_mock.add_response(
-        method="POST",
-        url=config.data_provider_url,
-        json={"data": {"worldBossTotalUsers": 20000}},
-    )
 
 
 @pytest.mark.parametrize("exist", [True, False])

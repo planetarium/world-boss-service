@@ -12,6 +12,7 @@ from world_boss.app.enums import NetworkType
 from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
+    bulk_insert_transactions,
     create_unsigned_tx,
     get_assets,
     get_latest_raid_id,
@@ -387,3 +388,58 @@ def test_get_next_month_last_day():
     with patch("datetime.date") as m:
         m.today.return_value = date(2024, 9, 19)
         assert get_next_month_last_day() == datetime(2024, 10, 31, tzinfo=timezone.utc)
+
+
+def test_bulk_insert_transactions(fx_session):
+    content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
+    3,26,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
+    rows = [r.split(",") for r in content.split("\n")]
+    nonce_rows_map = {175: rows}
+    bulk_insert_transactions(
+        rows,
+        nonce_rows_map,
+        datetime(2024, 9, 24, tzinfo=timezone.utc),
+        fx_session,
+        signer,
+        "memo",
+    )
+
+    assert len(fx_session.query(Transaction).first().amounts) == 5
+
+    world_boss_rewards = fx_session.query(WorldBossReward)
+    for i, world_boss_reward in enumerate(world_boss_rewards):
+        agent_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+        avatar_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+        ranking = 25
+        amounts = [
+            ("CRYSTAL", 150000, 18),
+            ("RUNESTONE_FENRIR1", 560, 0),
+            ("RUNESTONE_FENRIR2", 150, 0),
+            ("RUNESTONE_FENRIR3", 40, 0),
+        ]
+        if i == 1:
+            agent_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+            avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+            ranking = 26
+            amounts = [
+                ("RUNESTONE_FENRIR1", 560, 0),
+            ]
+
+        assert world_boss_reward.raid_id == 3
+        assert world_boss_reward.ranking == ranking
+        assert world_boss_reward.agent_address == agent_address
+        assert world_boss_reward.avatar_address == avatar_address
+
+        assert len(world_boss_reward.amounts) == len(amounts)
+
+        for ticker, amount, decimal_places in amounts:
+            world_boss_reward_amount = (
+                fx_session.query(WorldBossRewardAmount)
+                .filter_by(reward_id=world_boss_reward.id, ticker=ticker)
+                .one()
+            )
+            assert world_boss_reward_amount.decimal_places == decimal_places
+            assert world_boss_reward_amount.amount == amount
