@@ -299,7 +299,7 @@ def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: s
                 rows.append(row)
                 nonce_rows_map[nonce].append(row)
                 i += 1
-        bulk_insert_transactions(rows, nonce_rows_map, time_stamp, db, memo)
+        bulk_insert_transactions(rows, nonce_rows_map, time_stamp, db, signer, memo)
 
 
 @celery.task()
