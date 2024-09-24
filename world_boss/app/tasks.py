@@ -156,10 +156,11 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
         values = []
         for reward in result:
             exist_tickers = [i.ticker for i in reward.amounts]
-            for amounts in world_boss_reward_amounts[reward.ranking]:
-                if amounts["ticker"] not in exist_tickers:
-                    amounts["reward_id"] = reward.id
-                    values.append(amounts)
+            if world_boss_rewards.get(reward.ranking):
+                for amounts in world_boss_reward_amounts[reward.ranking]:
+                    if amounts["ticker"] not in exist_tickers:
+                        amounts["reward_id"] = reward.id
+                        values.append(amounts)
         if values:
             db.execute(insert(WorldBossRewardAmount), values)
             db.commit()
