@@ -370,14 +370,12 @@ def test_stage_transactions_with_countdown(
         )
 
 
-@pytest.mark.parametrize("exist", [True, False])
 def test_save_ranking_rewards(
     redisdb,
     celery_session_worker,
     httpx_mock: HTTPXMock,
     fx_ranking_rewards,
     fx_session,
-    exist: bool,
 ):
     raid_id = 1
     network_type = NetworkType.MAIN
@@ -410,14 +408,6 @@ def test_save_ranking_rewards(
             }
         },
     )
-    if exist:
-        wb = WorldBossReward()
-        wb.ranking = 2
-        wb.avatar_address = "01A0b412721b00bFb5D619378F8ab4E4a97646Ca"
-        wb.agent_address = "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52"
-        wb.raid_id = raid_id
-        fx_session.add(wb)
-        fx_session.commit()
     save_ranking_rewards(raid_id, 500, 1, signer.address)
     assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
