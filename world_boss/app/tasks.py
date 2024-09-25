@@ -379,4 +379,4 @@ def upload_tx_list(raid_id: int):
                 file=file_name,
                 initial_comment="test",
             )
-            set_to_cache(cache_key, json.dumps(values))
+            set_to_cache(cache_key, json.dumps(values), None)
