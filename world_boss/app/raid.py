@@ -369,11 +369,7 @@ def get_latest_raid_id(db: Session) -> int:
 
 
 def get_reward_count(db: Session, raid_id: int) -> int:
-    return (
-        db.query(func.count(WorldBossReward.ranking))
-        .filter_by(raid_id=raid_id)
-        .scalar()
-    )
+    return db.query(WorldBossReward.ranking).filter_by(raid_id=raid_id).count()
 
 
 def get_next_month_last_day() -> datetime.datetime:
