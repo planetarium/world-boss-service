@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from world_boss.app.api import api
 from world_boss.app.config import config
 from world_boss.app.graphql import graphql_app
-from world_boss.app.scheduler import scheduler
 
 
 def create_app() -> FastAPI:
@@ -20,8 +19,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
-
-@app.on_event("startup")
-def startup_event():
-    scheduler.start()
