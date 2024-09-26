@@ -59,8 +59,7 @@ class WorldBossReward(Base):
     amounts = relationship("WorldBossRewardAmount", back_populates="reward")
 
     __table_args__ = (
-        UniqueConstraint(raid_id, avatar_address, agent_address),
-        UniqueConstraint(raid_id, ranking),
+        UniqueConstraint(raid_id, avatar_address, agent_address, ranking),
     )
 
     def as_dict(self) -> dict:

@@ -252,13 +252,17 @@ def check_season():
             upload_tx_list(raid_id)
             raid_id += 1
             offset = 0
-        save_ranking_rewards(
-            raid_id=raid_id, size=500, offset=offset, signer_address=signer.address
-        )
+        save_ranking_rewards(raid_id=raid_id, size=500, offset=offset)
 
 
 @celery.task()
-def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: str):
+def save_ranking_rewards(raid_id: int, size: int, offset: int):
+    """
+
+    :param raid_id:
+    :param size:
+    :param offset:
+    """
     results: List[RankingRewardWithAgentDictionary] = []
     payload_size = size
     time_stamp = get_next_month_last_day()
@@ -304,6 +308,10 @@ def save_ranking_rewards(raid_id: int, size: int, offset: int, signer_address: s
 
 @celery.task()
 def upload_tx_list(raid_id: int):
+    """
+    upload signed tx csv data on Slack channel.
+    :param raid_id: target world boss season
+    """
     cache_key = f"{raid_id}_uploaded"
     # 중복 업로드 방지
     if cache_exists(cache_key):

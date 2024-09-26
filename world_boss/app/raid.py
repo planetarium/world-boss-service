@@ -310,6 +310,15 @@ def create_unsigned_tx(
     plain_value: ActionPlainValue,
     timestamp: datetime.datetime,
 ) -> bytes:
+    """
+    :param planet_id: planet id for genesis hash
+    :param public_key: signer public key
+    :param address: signer address
+    :param nonce: tx nonce
+    :param plain_value: tx actions plain value
+    :param timestamp: tx time stamp
+    :return: bencoded unsigned tx
+    """
     if address.startswith("0x"):
         address = address[2:]
     return bencodex.dumps(
@@ -340,6 +349,12 @@ def create_unsigned_tx(
 
 
 def append_signature_to_unsigned_tx(unsigned_tx: bytes, signature: bytes) -> bytes:
+    """
+    sign unsigned tx
+    :param unsigned_tx:
+    :param signature:
+    :return: signed tx
+    """
     decoded = bencodex.loads(unsigned_tx)
     decoded[b"S"] = signature
     return bencodex.dumps(decoded)
@@ -373,6 +388,10 @@ def get_reward_count(db: Session, raid_id: int) -> int:
 
 
 def get_next_month_last_day() -> datetime.datetime:
+    """
+    returns the last day of the next month following the call time to ensure tx validity.
+    if call this method 2024-09-xx return 2024-10-30
+    """
     # Today's date
     today = datetime.date.today()
 
@@ -396,8 +415,17 @@ def bulk_insert_transactions(
     signer,
     memo: typing.Optional[str] = None,
 ):
-    # ranking : world_boss_reward
-    world_boss_rewards: dict[int, dict] = {}
+    """
+    sign transfer-assets tx and save related models.
+    :param rows: target recipients.
+    :param nonce_rows_map: recipients group by tx nonce.
+    :param time_stamp: tx time stamp.
+    :param db:
+    :param signer: kms signer.
+    :param memo: tx memo.
+    """
+    # avatar_address : world_boss_reward
+    world_boss_rewards: dict[str, dict] = {}
     signer_address = signer.address
     tx_values: List[dict] = []
     tx_ids: dict[int, str] = {}
@@ -425,7 +453,8 @@ def bulk_insert_transactions(
     exist_rankings = [
         r for r, in db.query(WorldBossReward.ranking).filter_by(raid_id=raid_id)
     ]
-    world_boss_reward_amounts: dict[int, list[dict]] = {}
+    # avatar_address : list of world boss reward amount
+    world_boss_reward_amounts: dict[str, list[dict]] = {}
     # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
     for row in rows:
         # parse row
@@ -438,14 +467,14 @@ def bulk_insert_transactions(
         nonce = int(row[7])
 
         # get or create world_boss_reward
-        if ranking not in exist_rankings and not world_boss_rewards.get(ranking):
+        if ranking not in exist_rankings and not world_boss_rewards.get(avatar_address):
             world_boss_reward = {
                 "raid_id": raid_id,
                 "ranking": ranking,
                 "agent_address": agent_address,
                 "avatar_address": avatar_address,
             }
-            world_boss_rewards[ranking] = world_boss_reward
+            world_boss_rewards[avatar_address] = world_boss_reward
 
         # create world_boss_reward_amount
         world_boss_reward_amount = {
@@ -454,17 +483,17 @@ def bulk_insert_transactions(
             "ticker": ticker,
             "tx_id": tx_ids[nonce],
         }
-        if not world_boss_reward_amounts.get(ranking):
-            world_boss_reward_amounts[ranking] = []
-        world_boss_reward_amounts[ranking].append(world_boss_reward_amount)
+        if not world_boss_reward_amounts.get(avatar_address):
+            world_boss_reward_amounts[avatar_address] = []
+        world_boss_reward_amounts[avatar_address].append(world_boss_reward_amount)
     if world_boss_rewards:
         db.execute(insert(WorldBossReward), world_boss_rewards.values())
     result = db.query(WorldBossReward).filter_by(raid_id=raid_id)
     values = []
     for reward in result:
         exist_tickers = [i.ticker for i in reward.amounts]
-        if world_boss_rewards.get(reward.ranking):
-            for amounts in world_boss_reward_amounts[reward.ranking]:
+        if world_boss_rewards.get(reward.avatar_address):
+            for amounts in world_boss_reward_amounts[reward.avatar_address]:
                 if amounts["ticker"] not in exist_tickers:
                     amounts["reward_id"] = reward.id
                     values.append(amounts)

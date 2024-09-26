@@ -408,7 +408,7 @@ def test_save_ranking_rewards(
             }
         },
     )
-    save_ranking_rewards(raid_id, 500, 1, signer.address)
+    save_ranking_rewards(raid_id, 500, 1)
     assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
     assert fx_session.query(Transaction).filter_by(signer=signer.address).count() == 1

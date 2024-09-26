@@ -395,7 +395,7 @@ def test_bulk_insert_transactions(fx_session):
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
-    3,26,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
     rows = [r.split(",") for r in content.split("\n")]
     nonce_rows_map = {175: rows}
     bulk_insert_transactions(
@@ -423,7 +423,6 @@ def test_bulk_insert_transactions(fx_session):
         if i == 1:
             agent_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
             avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
-            ranking = 26
             amounts = [
                 ("RUNESTONE_FENRIR1", 560, 0),
             ]
