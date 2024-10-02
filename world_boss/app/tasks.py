@@ -252,19 +252,23 @@ def check_season():
             upload_tx_list(raid_id)
             raid_id += 1
             offset = 0
-        save_ranking_rewards(raid_id=raid_id, size=500, offset=offset)
+        save_ranking_rewards(
+            raid_id=raid_id, payload_size=500, recipients_size=50, offset=offset
+        )
 
 
 @celery.task()
-def save_ranking_rewards(raid_id: int, size: int, offset: int):
+def save_ranking_rewards(
+    raid_id: int, payload_size: int, recipients_size: int, offset: int
+):
     """
 
-    :param raid_id:
-    :param size:
-    :param offset:
+    :param raid_id: target season id
+    :param payload_size: request payload size to data provider
+    :param recipients_size: transfer_assets recipients size each tx
+    :param offset: query offset to data provider
     """
     results: List[RankingRewardWithAgentDictionary] = []
-    payload_size = size
     time_stamp = get_next_month_last_day()
     memo = "world boss ranking rewards by world boss signer"
     with TaskSessionLocal() as db:
@@ -285,7 +289,7 @@ def save_ranking_rewards(raid_id: int, size: int, offset: int):
             avatar_address = raider["address"]
             reward_dict_list: List[RewardDictionary] = r["rewards"]
             for reward_dict in reward_dict_list:
-                nonce = start_nonce + int(i / size)
+                nonce = start_nonce + int(i / recipients_size)
                 if not nonce_rows_map.get(nonce):
                     nonce_rows_map[nonce] = []
                 currency: CurrencyDictionary = reward_dict["currency"]

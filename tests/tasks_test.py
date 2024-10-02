@@ -374,22 +374,39 @@ def test_save_ranking_rewards(
     redisdb,
     celery_session_worker,
     httpx_mock: HTTPXMock,
-    fx_ranking_rewards,
+    fx_ranking_reward_csv,
     fx_session,
 ):
     raid_id = 1
     network_type = NetworkType.MAIN
+    rewards: dict[str, RankingRewardDictionary] = {}
+    graphql_result: dict = {}
+    # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
+    for line in fx_ranking_reward_csv.split("\n"):
+        row = line.split(",")
+        avatar_address = row[3]
+        if not rewards.get(avatar_address):
+            rewards[avatar_address] = {
+                "raider": {
+                    "address": avatar_address,
+                    "ranking": int(row[1]),
+                },
+                "rewards": [],
+            }
+            graphql_result[f"arg{avatar_address}"] = {"agentAddress": row[2]}
+        rewards[avatar_address]["rewards"].append(
+            {
+                "currency": {
+                    "decimalPlaces": row[6],
+                    "minters": None,
+                    "ticker": row[5],
+                },
+                "quantity": row[4],
+            }
+        )
 
     # get from service query
-    requested_rewards: List[RankingRewardDictionary] = [
-        {
-            "raider": {
-                "address": "01A0b412721b00bFb5D619378F8ab4E4a97646Ca",
-                "ranking": 2,
-            },
-            "rewards": fx_ranking_rewards,
-        },
-    ]
+    requested_rewards: List[RankingRewardDictionary] = list(rewards.values())
     httpx_mock.add_response(
         method="POST",
         url=config.data_provider_url,
@@ -398,19 +415,14 @@ def test_save_ranking_rewards(
     httpx_mock.add_response(
         method="POST",
         url=config.headless_url,
-        json={
-            "data": {
-                "stateQuery": {
-                    "arg01A0b412721b00bFb5D619378F8ab4E4a97646Ca": {
-                        "agentAddress": "0x9EBD1b4F9DbB851BccEa0CFF32926d81eDf6De52",
-                    },
-                }
-            }
-        },
+        json={"data": {"stateQuery": graphql_result}},
     )
-    save_ranking_rewards(raid_id, 500, 1)
+    save_ranking_rewards(raid_id, 500, 50, 1)
     assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
     assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
-    assert fx_session.query(Transaction).filter_by(signer=signer.address).count() == 1
-    assert fx_session.query(WorldBossReward).filter_by(raid_id=raid_id).count() == 1
-    assert fx_session.query(WorldBossRewardAmount).count() == len(fx_ranking_rewards)
+    query = fx_session.query(Transaction)
+    assert query.count() == 10
+    for tx in query:
+        assert len(tx.amounts) <= 50
+    assert fx_session.query(WorldBossReward).filter_by(raid_id=raid_id).count() == 125
+    assert fx_session.query(WorldBossRewardAmount).count() == 500
