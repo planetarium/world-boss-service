@@ -1,13 +1,25 @@
+import typing
+from datetime import date, datetime, timezone
 from typing import List
+from unittest.mock import patch
 
+import bencodex
 import pytest
+from sqlalchemy.orm import Session
 
 from world_boss.app.cache import cache_exists
 from world_boss.app.enums import NetworkType
+from world_boss.app.kms import signer
 from world_boss.app.models import Transaction, WorldBossReward, WorldBossRewardAmount
 from world_boss.app.raid import (
+    bulk_insert_transactions,
+    create_unsigned_tx,
     get_assets,
+    get_latest_raid_id,
+    get_next_month_last_day,
     get_next_tx_nonce,
+    get_reward_count,
+    get_transfer_assets_plain_value,
     get_tx_delay_factor,
     list_tx_nonce,
     update_agent_address,
@@ -15,9 +27,12 @@ from world_boss.app.raid import (
     write_tx_result_csv,
 )
 from world_boss.app.stubs import (
+    ActionPlainValue,
     AmountDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
+    Recipient,
+    TransferAssetsValues,
 )
 
 
@@ -239,3 +254,191 @@ def test_list_tx_nonce(fx_session, nonce_list: List[int]):
 )
 def test_get_tx_delay_factor(expected: int, index: int):
     assert get_tx_delay_factor(index) == expected
+
+
+@pytest.mark.parametrize("memo", ["memo", None])
+def test_get_transfer_assets_plain_value(memo: str):
+    sender = "0xCFCd6565287314FF70e4C4CF309dB701C43eA5bD"
+    recipients: List[Recipient] = [
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 10,
+                "decimalPlaces": 18,
+                "ticker": "CRYSTAL",
+            },
+        },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "RUNESTONE_FENRIR1",
+            },
+        },
+    ]
+    plain_value: ActionPlainValue = get_transfer_assets_plain_value(
+        sender, recipients, memo
+    )
+    assert plain_value["type_id"] == "transfer_assets3"
+    values: TransferAssetsValues = plain_value["values"]
+    assert values["sender"] == bytes.fromhex(sender.replace("0x", ""))
+    assert values["recipients"] == [
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                {
+                    "decimalPlaces": b"\x12",
+                    "minters": None,
+                    "ticker": "CRYSTAL",
+                },
+                10000000000000000000,
+            ],
+        ],
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                {
+                    "decimalPlaces": b"\x00",
+                    "minters": None,
+                    "ticker": "RUNESTONE_FENRIR1",
+                },
+                100,
+            ],
+        ],
+    ]
+    assert values.get("memo") == memo
+
+
+@pytest.mark.parametrize(
+    "planet_id, genesis",
+    [
+        (
+            "0x000000000000",
+            "4582250d0da33b06779a8475d283d5dd210c683b9b999d74d03fac4f58fa6bce",
+        ),
+        (
+            "0x000000000001",
+            "729fa26958648a35b53e8e3905d11ec53b1b4929bf5f499884aed7df616f5913",
+        ),
+    ],
+)
+def test_create_unsigned_tx(
+    planet_id: str, genesis: str, fx_transfer_assets_plain_value
+):
+    public_key = signer.public_key
+    address = signer.address
+    actual = create_unsigned_tx(
+        planet_id,
+        public_key,
+        address,
+        1,
+        fx_transfer_assets_plain_value,
+        datetime(2024, 9, 30, tzinfo=timezone.utc),
+    )
+    expected = {
+        b"a": [fx_transfer_assets_plain_value],
+        b"g": bytes.fromhex(genesis),
+        b"l": 4,
+        b"m": [
+            {"decimalPlaces": b"\x12", "minters": None, "ticker": "Mead"},
+            1000000000000000000,
+        ],
+        b"n": 1,
+        b"p": public_key,
+        b"s": bytes.fromhex(address.replace("0x", "")),
+        b"t": "2024-09-30T00:00:00.000000Z",
+        b"u": [],
+    }
+    assert bencodex.dumps(expected) == actual
+
+
+@pytest.mark.parametrize("season, expected", [(None, 1), (1, 1), (2, 2)])
+def test_get_latest_season(
+    fx_session: Session, season: typing.Optional[int], expected: int
+):
+    if season:
+        reward = WorldBossReward()
+        reward.raid_id = season
+        avatar_address = "avatar_address"
+        agent_address = "agent_address"
+        reward.avatar_address = avatar_address
+        reward.agent_address = agent_address
+        reward.ranking = 1
+        fx_session.add(reward)
+        fx_session.commit()
+    assert get_latest_raid_id(fx_session) == expected
+
+
+def test_get_reward_count(fx_session: Session):
+    reward = WorldBossReward()
+    reward.raid_id = 1
+    avatar_address = "avatar_address"
+    agent_address = "agent_address"
+    reward.avatar_address = avatar_address
+    reward.agent_address = agent_address
+    reward.ranking = 1
+    fx_session.add(reward)
+    fx_session.commit()
+    assert get_reward_count(fx_session, 1) == 1
+    assert get_reward_count(fx_session, 2) == 0
+
+
+def test_get_next_month_last_day():
+    with patch("datetime.date") as m:
+        m.today.return_value = date(2024, 9, 19)
+        assert get_next_month_last_day() == datetime(2024, 10, 31, tzinfo=timezone.utc)
+
+
+def test_bulk_insert_transactions(fx_session):
+    content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
+    rows = [r.split(",") for r in content.split("\n")]
+    nonce_rows_map = {175: rows}
+    bulk_insert_transactions(
+        rows,
+        nonce_rows_map,
+        datetime(2024, 9, 24, tzinfo=timezone.utc),
+        fx_session,
+        signer,
+        "memo",
+    )
+
+    assert len(fx_session.query(Transaction).first().amounts) == 5
+
+    world_boss_rewards = fx_session.query(WorldBossReward)
+    for i, world_boss_reward in enumerate(world_boss_rewards):
+        agent_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+        avatar_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+        ranking = 25
+        amounts = [
+            ("CRYSTAL", 150000, 18),
+            ("RUNESTONE_FENRIR1", 560, 0),
+            ("RUNESTONE_FENRIR2", 150, 0),
+            ("RUNESTONE_FENRIR3", 40, 0),
+        ]
+        if i == 1:
+            agent_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+            avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+            amounts = [
+                ("RUNESTONE_FENRIR1", 560, 0),
+            ]
+
+        assert world_boss_reward.raid_id == 3
+        assert world_boss_reward.ranking == ranking
+        assert world_boss_reward.agent_address == agent_address
+        assert world_boss_reward.avatar_address == avatar_address
+
+        assert len(world_boss_reward.amounts) == len(amounts)
+
+        for ticker, amount, decimal_places in amounts:
+            world_boss_reward_amount = (
+                fx_session.query(WorldBossRewardAmount)
+                .filter_by(reward_id=world_boss_reward.id, ticker=ticker)
+                .one()
+            )
+            assert world_boss_reward_amount.decimal_places == decimal_places
+            assert world_boss_reward_amount.amount == amount

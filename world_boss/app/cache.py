@@ -18,8 +18,13 @@ def cache_exists(key: str):
     return rd.exists(key)
 
 
-def set_to_cache(key: str, pickled_object, ttl: timedelta = timedelta(minutes=60)):
-    rd.setex(key, ttl, pickled_object)
+def set_to_cache(
+    key: str, pickled_object, ttl: Union[timedelta, None] = timedelta(minutes=60)
+):
+    if ttl is None:
+        rd.set(key, pickled_object)
+    else:
+        rd.setex(key, ttl, pickled_object)
 
 
 def get_from_cache(key: str) -> Union[str, bytes]:

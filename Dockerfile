@@ -13,6 +13,7 @@ COPY ./world_boss /app/world_boss
 COPY pyproject.toml /app
 COPY poetry.lock /app
 COPY alembic.ini /app
+COPY main.py /app
 
 WORKDIR /app
 RUN poetry install --no-root --no-dev

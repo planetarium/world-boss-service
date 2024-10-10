@@ -1,6 +1,7 @@
 from typing import Annotated, List, Optional
 
 from mypy_extensions import TypedDict
+from typing_extensions import NotRequired
 
 RaiderDictionary = TypedDict("RaiderDictionary", {"address": str, "ranking": int})
 RaiderWithAgentDictionary = TypedDict(
@@ -31,3 +32,18 @@ AmountDictionary = TypedDict(
     },
 )
 Recipient = TypedDict("Recipient", {"recipient": str, "amount": AmountDictionary})
+TransferAssetsValues = TypedDict(
+    "TransferAssetsValues",
+    {
+        "sender": bytes,
+        "recipients": list,
+        "memo": NotRequired[str],
+    },
+)
+ActionPlainValue = TypedDict(
+    "ActionPlainValue",
+    {
+        "type_id": str,
+        "values": TransferAssetsValues,
+    },
+)

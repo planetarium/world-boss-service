@@ -20,6 +20,7 @@ from world_boss.app.tasks import (
     get_ranking_rewards,
     insert_world_boss_rewards,
     query_tx_result,
+    save_ranking_rewards,
     send_slack_message,
     sign_transfer_assets,
     stage_transaction,
@@ -191,47 +192,73 @@ def test_sign_transfer_assets(
     assert fx_session.query(Transaction).count() == expected_count
 
 
-def test_insert_world_boss_rewards(celery_session_worker, fx_session):
+@pytest.mark.parametrize("exist", [True, False])
+def test_insert_world_boss_rewards(celery_session_worker, fx_session, exist: bool):
     content = """3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,CRYSTAL,18,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
-    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175"""
+    3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
+    3,26,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
     tx = Transaction()
     tx.nonce = 175
     tx.signer = "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa"
     tx.tx_id = "tx_id"
     tx.payload = "payload"
     fx_session.add(tx)
+    if exist:
+        wb = WorldBossReward()
+        wb.raid_id = 3
+        wb.ranking = 25
+        wb.agent_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+        wb.avatar_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+        wba = WorldBossRewardAmount()
+        wba.reward = wb
+        wba.amount = 150000
+        wba.ticker = "CRYSTAL"
+        wba.decimal_places = 18
+        wba.tx_id = "tx_id"
+        fx_session.add(wb)
     fx_session.commit()
-    insert_world_boss_rewards.delay([r.split(",") for r in content.split("\n")]).get(
-        timeout=10
-    )
+    insert_world_boss_rewards.delay(
+        [r.split(",") for r in content.split("\n")], tx.signer
+    ).get(timeout=10)
 
-    assert len(fx_session.query(Transaction).first().amounts) == 4
+    assert len(fx_session.query(Transaction).first().amounts) == 5
 
-    world_boss_reward = fx_session.query(WorldBossReward).first()
-    assert world_boss_reward.raid_id == 3
-    assert world_boss_reward.ranking == 25
-    assert (
-        world_boss_reward.agent_address == "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
-    )
-    assert (
-        world_boss_reward.avatar_address == "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
-    )
+    world_boss_rewards = fx_session.query(WorldBossReward)
+    for i, world_boss_reward in enumerate(world_boss_rewards):
+        agent_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+        avatar_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+        ranking = 25
+        amounts = [
+            ("CRYSTAL", 150000, 18),
+            ("RUNESTONE_FENRIR1", 560, 0),
+            ("RUNESTONE_FENRIR2", 150, 0),
+            ("RUNESTONE_FENRIR3", 40, 0),
+        ]
+        if i == 1:
+            agent_address = "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+            avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
+            ranking = 26
+            amounts = [
+                ("RUNESTONE_FENRIR1", 560, 0),
+            ]
 
-    assert len(world_boss_reward.amounts) == 4
+        assert world_boss_reward.raid_id == 3
+        assert world_boss_reward.ranking == ranking
+        assert world_boss_reward.agent_address == agent_address
+        assert world_boss_reward.avatar_address == avatar_address
 
-    for ticker, amount, decimal_places in [
-        ("CRYSTAL", 150000, 18),
-        ("RUNESTONE_FENRIR1", 560, 0),
-        ("RUNESTONE_FENRIR2", 150, 0),
-        ("RUNESTONE_FENRIR3", 40, 0),
-    ]:
-        world_boss_reward_amount = (
-            fx_session.query(WorldBossRewardAmount).filter_by(ticker=ticker).one()
-        )
-        assert world_boss_reward_amount.decimal_places == decimal_places
-        assert world_boss_reward_amount.amount == amount
+        assert len(world_boss_reward.amounts) == len(amounts)
+
+        for ticker, amount, decimal_places in amounts:
+            world_boss_reward_amount = (
+                fx_session.query(WorldBossRewardAmount)
+                .filter_by(reward_id=world_boss_reward.id, ticker=ticker)
+                .one()
+            )
+            assert world_boss_reward_amount.decimal_places == decimal_places
+            assert world_boss_reward_amount.amount == amount
 
 
 def test_send_slack_message(
@@ -341,3 +368,61 @@ def test_stage_transactions_with_countdown(
             channel=config.slack_channel_id,
             text=f"stage {len(fx_transactions)} transactions",
         )
+
+
+def test_save_ranking_rewards(
+    redisdb,
+    celery_session_worker,
+    httpx_mock: HTTPXMock,
+    fx_ranking_reward_csv,
+    fx_session,
+):
+    raid_id = 1
+    network_type = NetworkType.MAIN
+    rewards: dict[str, RankingRewardDictionary] = {}
+    graphql_result: dict = {}
+    # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
+    for line in fx_ranking_reward_csv.split("\n"):
+        row = line.split(",")
+        avatar_address = row[3]
+        if not rewards.get(avatar_address):
+            rewards[avatar_address] = {
+                "raider": {
+                    "address": avatar_address,
+                    "ranking": int(row[1]),
+                },
+                "rewards": [],
+            }
+            graphql_result[f"arg{avatar_address}"] = {"agentAddress": row[2]}
+        rewards[avatar_address]["rewards"].append(
+            {
+                "currency": {
+                    "decimalPlaces": row[6],
+                    "minters": None,
+                    "ticker": row[5],
+                },
+                "quantity": row[4],
+            }
+        )
+
+    # get from service query
+    requested_rewards: List[RankingRewardDictionary] = list(rewards.values())
+    httpx_mock.add_response(
+        method="POST",
+        url=config.data_provider_url,
+        json={"data": {"worldBossRankingRewards": requested_rewards}},
+    )
+    httpx_mock.add_response(
+        method="POST",
+        url=config.headless_url,
+        json={"data": {"stateQuery": graphql_result}},
+    )
+    save_ranking_rewards(raid_id, 500, 50, 1)
+    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
+    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
+    query = fx_session.query(Transaction)
+    assert query.count() == 10
+    for tx in query:
+        assert len(tx.amounts) <= 50
+    assert fx_session.query(WorldBossReward).filter_by(raid_id=raid_id).count() == 125
+    assert fx_session.query(WorldBossRewardAmount).count() == 500
