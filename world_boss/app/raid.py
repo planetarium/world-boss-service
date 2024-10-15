@@ -514,12 +514,16 @@ def get_claim_items_plain_value(
         amount = r["amount"]
         decimal_places = amount["decimalPlaces"]
         address = bytes.fromhex(r["recipient"].replace("0x", ""))
+        ticker: str = amount["ticker"]
+        # wrapp fav currency
+        if not ticker.startswith("Item"):
+            ticker = f"FAV__{ticker}"
         claim_data_dict[address].append(
             [
                 {
                     "decimalPlaces": decimal_places.to_bytes(1, "big"),
                     "minters": None,
-                    "ticker": amount["ticker"],
+                    "ticker": ticker,
                 },
                 amount["quantity"] * 10**decimal_places,
             ],

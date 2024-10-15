@@ -469,6 +469,14 @@ def test_get_claim_items_plain_value(memo: str):
                 "ticker": "RUNESTONE_FENRIR1",
             },
         },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "Item_NT_500000",
+            },
+        },
     ]
     plain_value: ActionPlainValue = get_claim_items_plain_value(recipients, memo)
     assert plain_value["type_id"] == "claim_items"
@@ -481,7 +489,7 @@ def test_get_claim_items_plain_value(memo: str):
                     {
                         "decimalPlaces": b"\x12",
                         "minters": None,
-                        "ticker": "CRYSTAL",
+                        "ticker": "FAV__CRYSTAL",
                     },
                     10000000000000000000,
                 ],
@@ -489,7 +497,15 @@ def test_get_claim_items_plain_value(memo: str):
                     {
                         "decimalPlaces": b"\x00",
                         "minters": None,
-                        "ticker": "RUNESTONE_FENRIR1",
+                        "ticker": "FAV__RUNESTONE_FENRIR1",
+                    },
+                    100,
+                ],
+                [
+                    {
+                        "decimalPlaces": b"\x00",
+                        "minters": None,
+                        "ticker": "Item_NT_500000",
                     },
                     100,
                 ],
