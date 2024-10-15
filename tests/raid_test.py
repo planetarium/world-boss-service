@@ -88,7 +88,7 @@ def test_update_agent_address(
 @pytest.mark.parametrize("raid_id", [1, 2])
 @pytest.mark.parametrize(
     "start_nonce, bottom, size, last_nonce",
-    [(1, 100, 100, 4), (1, 100, 50, 8), (2, 4, 100, 2), (2, 4, 1, 17)],
+    [(1, 100, 100, 6), (1, 100, 50, 12), (2, 4, 100, 2), (2, 4, 1, 25)],
 )
 def test_write_ranking_rewards_csv(
     tmp_path,
@@ -117,7 +117,7 @@ def test_write_ranking_rewards_csv(
     with open(file_name, "r") as f:
         rows = f.readlines()
         # header + fx_ranking_rewards * bottom
-        assert len(rows) == 1 + (bottom * 4)
+        assert len(rows) == 1 + (bottom * 6)
         # check header
         assert (
             rows[0]
@@ -127,7 +127,7 @@ def test_write_ranking_rewards_csv(
         # check first and last row
         for key, ranking, amount, ticker, decimal_places, nonce in [
             (1, 1, 1000000, "CRYSTAL", 18, start_nonce),
-            (-1, bottom, 300, "RUNESTONE_FENRIR3", 0, last_nonce),
+            (-1, bottom, 300, "Item_NT_800201", 0, last_nonce),
         ]:
             assert (
                 rows[key]
