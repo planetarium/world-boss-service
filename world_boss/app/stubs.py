@@ -1,4 +1,4 @@
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Union
 
 from mypy_extensions import TypedDict
 from typing_extensions import NotRequired
@@ -40,10 +40,18 @@ TransferAssetsValues = TypedDict(
         "memo": NotRequired[str],
     },
 )
+ClaimData = list[list]
+ClaimItemsValues = TypedDict(
+    "ClaimItemsValues",
+    {
+        "cd": ClaimData,
+        "m": NotRequired[str],
+    },
+)
 ActionPlainValue = TypedDict(
     "ActionPlainValue",
     {
         "type_id": str,
-        "values": TransferAssetsValues,
+        "values": Union[TransferAssetsValues, ClaimItemsValues],
     },
 )

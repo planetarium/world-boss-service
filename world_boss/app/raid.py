@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import json
 import typing
+from collections import defaultdict
 from typing import List, Tuple, cast
 
 import bencodex
@@ -23,6 +24,8 @@ from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.stubs import (
     ActionPlainValue,
     AmountDictionary,
+    ClaimData,
+    ClaimItemsValues,
     CurrencyDictionary,
     RaiderWithAgentDictionary,
     RankingRewardDictionary,
@@ -500,3 +503,36 @@ def bulk_insert_transactions(
     if values:
         db.execute(insert(WorldBossRewardAmount), values)
         db.commit()
+
+
+def get_claim_items_plain_value(
+    recipients: typing.List[Recipient], memo: str
+) -> ActionPlainValue:
+    claim_data: ClaimData = []
+    claim_data_dict: dict[bytes, list] = defaultdict(list)
+    for r in recipients:
+        amount = r["amount"]
+        decimal_places = amount["decimalPlaces"]
+        address = bytes.fromhex(r["recipient"].replace("0x", ""))
+        claim_data_dict[address].append(
+            [
+                {
+                    "decimalPlaces": decimal_places.to_bytes(1, "big"),
+                    "minters": None,
+                    "ticker": amount["ticker"],
+                },
+                amount["quantity"] * 10**decimal_places,
+            ],
+        )
+    for address, fungible_asset_values in claim_data_dict.items():
+        claim_data.append([address, fungible_asset_values])
+    values: ClaimItemsValues = {
+        "cd": claim_data,
+    }
+    if memo is not None:
+        values["m"] = memo
+    pv: ActionPlainValue = {
+        "type_id": "claim_items",
+        "values": values,
+    }
+    return pv

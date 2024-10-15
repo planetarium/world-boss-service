@@ -15,6 +15,7 @@ from world_boss.app.raid import (
     bulk_insert_transactions,
     create_unsigned_tx,
     get_assets,
+    get_claim_items_plain_value,
     get_latest_raid_id,
     get_next_month_last_day,
     get_next_tx_nonce,
@@ -29,6 +30,7 @@ from world_boss.app.raid import (
 from world_boss.app.stubs import (
     ActionPlainValue,
     AmountDictionary,
+    ClaimItemsValues,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
     Recipient,
@@ -281,7 +283,7 @@ def test_get_transfer_assets_plain_value(memo: str):
         sender, recipients, memo
     )
     assert plain_value["type_id"] == "transfer_assets3"
-    values: TransferAssetsValues = plain_value["values"]
+    values: TransferAssetsValues = plain_value["values"]  # type: ignore
     assert values["sender"] == bytes.fromhex(sender.replace("0x", ""))
     assert values["recipients"] == [
         [
@@ -442,3 +444,52 @@ def test_bulk_insert_transactions(fx_session):
             )
             assert world_boss_reward_amount.decimal_places == decimal_places
             assert world_boss_reward_amount.amount == amount
+
+
+@pytest.mark.parametrize("memo", ["memo", None])
+def test_get_claim_items_plain_value(memo: str):
+    recipients: List[Recipient] = [
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 10,
+                "decimalPlaces": 18,
+                "ticker": "CRYSTAL",
+            },
+        },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "RUNESTONE_FENRIR1",
+            },
+        },
+    ]
+    plain_value: ActionPlainValue = get_claim_items_plain_value(recipients, memo)
+    assert plain_value["type_id"] == "claim_items"
+    values: ClaimItemsValues = plain_value["values"]  # type: ignore
+    assert values["cd"] == [
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                [
+                    {
+                        "decimalPlaces": b"\x12",
+                        "minters": None,
+                        "ticker": "CRYSTAL",
+                    },
+                    10000000000000000000,
+                ],
+                [
+                    {
+                        "decimalPlaces": b"\x00",
+                        "minters": None,
+                        "ticker": "RUNESTONE_FENRIR1",
+                    },
+                    100,
+                ],
+            ],
+        ],
+    ]
+    assert values.get("m") == memo
