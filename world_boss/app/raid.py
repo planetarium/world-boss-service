@@ -435,7 +435,7 @@ def bulk_insert_transactions(
     for n in nonce_rows_map.keys():
         recipient_rows = nonce_rows_map[n]
         recipients = [row_to_recipient(r) for r in recipient_rows]
-        pv = get_transfer_assets_plain_value(signer_address, recipients, memo)
+        pv = get_claim_items_plain_value(recipients, memo)
         unsigned_transaction = create_unsigned_tx(
             config.planet_id, signer.public_key, signer_address, n, pv, time_stamp
         )

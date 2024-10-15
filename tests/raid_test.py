@@ -397,7 +397,9 @@ def test_bulk_insert_transactions(fx_session):
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
-    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,300,Item_NT_500000,0,175
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,30,Item_NT_800201,0,175"""
     rows = [r.split(",") for r in content.split("\n")]
     nonce_rows_map = {175: rows}
     bulk_insert_transactions(
@@ -409,7 +411,7 @@ def test_bulk_insert_transactions(fx_session):
         "memo",
     )
 
-    assert len(fx_session.query(Transaction).first().amounts) == 5
+    assert len(fx_session.query(Transaction).first().amounts) == 7
 
     world_boss_rewards = fx_session.query(WorldBossReward)
     for i, world_boss_reward in enumerate(world_boss_rewards):
@@ -427,6 +429,8 @@ def test_bulk_insert_transactions(fx_session):
             avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
             amounts = [
                 ("RUNESTONE_FENRIR1", 560, 0),
+                ("Item_NT_500000", 300, 0),
+                ("Item_NT_800201", 30, 0),
             ]
 
         assert world_boss_reward.raid_id == 3
