@@ -4,6 +4,8 @@ import datetime
 import hashlib
 import json
 import typing
+import uuid
+from collections import defaultdict
 from typing import List, Tuple, cast
 
 import bencodex
@@ -23,7 +25,10 @@ from world_boss.app.schemas import WorldBossRewardSchema
 from world_boss.app.stubs import (
     ActionPlainValue,
     AmountDictionary,
+    ClaimData,
+    ClaimItemsValues,
     CurrencyDictionary,
+    PrepareRewardAssetsValues,
     RaiderWithAgentDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
@@ -432,7 +437,7 @@ def bulk_insert_transactions(
     for n in nonce_rows_map.keys():
         recipient_rows = nonce_rows_map[n]
         recipients = [row_to_recipient(r) for r in recipient_rows]
-        pv = get_transfer_assets_plain_value(signer_address, recipients, memo)
+        pv = get_claim_items_plain_value(recipients, memo)
         unsigned_transaction = create_unsigned_tx(
             config.planet_id, signer.public_key, signer_address, n, pv, time_stamp
         )
@@ -500,3 +505,73 @@ def bulk_insert_transactions(
     if values:
         db.execute(insert(WorldBossRewardAmount), values)
         db.commit()
+
+
+def get_claim_items_plain_value(
+    recipients: typing.List[Recipient], memo: str
+) -> ActionPlainValue:
+    claim_data: ClaimData = []
+    claim_data_dict: dict[bytes, list] = defaultdict(list)
+    for r in recipients:
+        amount = r["amount"]
+        decimal_places = amount["decimalPlaces"]
+        address = bytes.fromhex(r["recipient"].replace("0x", ""))
+        ticker: str = amount["ticker"]
+        # wrapp fav currency
+        if not ticker.startswith("Item"):
+            ticker = f"FAV__{ticker}"
+        claim_data_dict[address].append(
+            [
+                {
+                    "decimalPlaces": decimal_places.to_bytes(1, "big"),
+                    "minters": None,
+                    "ticker": ticker,
+                },
+                amount["quantity"] * 10**decimal_places,
+            ],
+        )
+    for address, fungible_asset_values in claim_data_dict.items():
+        claim_data.append([address, fungible_asset_values])
+    values: ClaimItemsValues = {
+        "cd": claim_data,
+        "id": uuid.uuid4().bytes,
+    }
+    if memo is not None:
+        values["m"] = memo
+    pv: ActionPlainValue = {
+        "type_id": "claim_items",
+        "values": values,
+    }
+    return pv
+
+
+def get_prepare_reward_assets_plain_value(
+    address: str, assets: List[AmountDictionary]
+) -> ActionPlainValue:
+    reward_pool_address = bytes.fromhex(address.replace("0x", ""))
+    fungible_asset_values: list[list] = []
+    for amount in assets:
+        decimal_places = amount["decimalPlaces"]
+        ticker: str = amount["ticker"]
+        # wrapp fav currency
+        if not ticker.startswith("Item"):
+            ticker = f"FAV__{ticker}"
+        fungible_asset_values.append(
+            [
+                {
+                    "decimalPlaces": decimal_places.to_bytes(1, "big"),
+                    "minters": None,
+                    "ticker": ticker,
+                },
+                amount["quantity"] * 10**decimal_places,
+            ]
+        )
+    values: PrepareRewardAssetsValues = {
+        "r": reward_pool_address,
+        "a": fungible_asset_values,
+    }
+    pv: ActionPlainValue = {
+        "type_id": "prepare_reward_assets",
+        "values": values,
+    }
+    return pv

@@ -116,6 +116,22 @@ def fx_ranking_rewards() -> typing.List[RewardDictionary]:
             },
             "quantity": "300",
         },
+        {
+            "currency": {
+                "decimalPlaces": 0,
+                "minters": None,
+                "ticker": "Item_NT_500000",
+            },
+            "quantity": "300",
+        },
+        {
+            "currency": {
+                "decimalPlaces": 0,
+                "minters": None,
+                "ticker": "Item_NT_800201",
+            },
+            "quantity": "300",
+        },
     ]
 
 
