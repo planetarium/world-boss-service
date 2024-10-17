@@ -19,6 +19,7 @@ from world_boss.app.raid import (
     get_latest_raid_id,
     get_next_month_last_day,
     get_next_tx_nonce,
+    get_prepare_reward_assets_plain_value,
     get_reward_count,
     get_transfer_assets_plain_value,
     get_tx_delay_factor,
@@ -513,3 +514,93 @@ def test_get_claim_items_plain_value(memo: str):
         ],
     ]
     assert values.get("m") == memo
+    serialized = bencodex.dumps(plain_value).hex()
+    assert serialized
+
+
+def test_get_prepare_reward_assets_plain_value(fx_session):
+    amounts: List[AmountDictionary] = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+        {"decimalPlaces": 0, "ticker": "Item_NT_500000", "quantity": 3000},
+        {"decimalPlaces": 0, "ticker": "Item_NT_800201", "quantity": 300},
+    ]
+    for i, amount in enumerate(amounts):
+        transaction = Transaction()
+        transaction.tx_id = str(i)
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
+        reward = WorldBossReward()
+        reward.avatar_address = "avatar_address"
+        reward.agent_address = "agent_address"
+        reward.raid_id = 1
+        reward.ranking = i
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = amount["quantity"]
+        reward_amount.ticker = amount["ticker"]
+        reward_amount.decimal_places = amount["decimalPlaces"]
+        reward_amount.reward = reward
+        reward_amount.transaction = transaction
+        fx_session.add(transaction)
+    fx_session.commit()
+    assets = get_assets(1, fx_session)
+    assert len(assets) == len(amounts)
+    address = "2531e5e06cBD11aF54f98D39578990716fFC7dBa"
+    plain_value: ActionPlainValue = get_prepare_reward_assets_plain_value(address, assets)  # type: ignore
+    assert plain_value["type_id"] == "prepare_reward_assets"
+    values: ClaimItemsValues = plain_value["values"]  # type: ignore
+    serialized = bencodex.dumps(plain_value).hex()
+    assert values["r"] == bytes.fromhex(address)
+    assert values["a"] == [
+        [
+            {
+                "decimalPlaces": b"\x12",
+                "minters": None,
+                "ticker": "FAV__CRYSTAL",
+            },
+            109380000000000000000000000,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "Item_NT_500000",
+            },
+            3000,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "Item_NT_800201",
+            },
+            300,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR1",
+            },
+            406545,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR2",
+            },
+            111715,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR3",
+            },
+            23890,
+        ],
+    ]

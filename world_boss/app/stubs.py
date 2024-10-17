@@ -49,10 +49,19 @@ ClaimItemsValues = TypedDict(
         "id": NotRequired[bytes],
     },
 )
+PrepareRewardAssetsValues = TypedDict(
+    "PrepareRewardAssetsValues",
+    {
+        "r": bytes,
+        "a": list[list],
+    },
+)
 ActionPlainValue = TypedDict(
     "ActionPlainValue",
     {
         "type_id": str,
-        "values": Union[TransferAssetsValues, ClaimItemsValues],
+        "values": Union[
+            TransferAssetsValues, ClaimItemsValues, PrepareRewardAssetsValues
+        ],
     },
 )

@@ -28,6 +28,7 @@ from world_boss.app.stubs import (
     ClaimData,
     ClaimItemsValues,
     CurrencyDictionary,
+    PrepareRewardAssetsValues,
     RaiderWithAgentDictionary,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
@@ -539,6 +540,38 @@ def get_claim_items_plain_value(
         values["m"] = memo
     pv: ActionPlainValue = {
         "type_id": "claim_items",
+        "values": values,
+    }
+    return pv
+
+
+def get_prepare_reward_assets_plain_value(
+    address: str, assets: List[AmountDictionary]
+) -> ActionPlainValue:
+    reward_pool_address = bytes.fromhex(address.replace("0x", ""))
+    fungible_asset_values: list[list] = []
+    for amount in assets:
+        decimal_places = amount["decimalPlaces"]
+        ticker: str = amount["ticker"]
+        # wrapp fav currency
+        if not ticker.startswith("Item"):
+            ticker = f"FAV__{ticker}"
+        fungible_asset_values.append(
+            [
+                {
+                    "decimalPlaces": decimal_places.to_bytes(1, "big"),
+                    "minters": None,
+                    "ticker": ticker,
+                },
+                amount["quantity"] * 10**decimal_places,
+            ]
+        )
+    values: PrepareRewardAssetsValues = {
+        "r": reward_pool_address,
+        "a": fungible_asset_values,
+    }
+    pv: ActionPlainValue = {
+        "type_id": "prepare_reward_assets",
         "values": values,
     }
     return pv
