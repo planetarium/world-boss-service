@@ -4,6 +4,7 @@ import datetime
 import hashlib
 import json
 import typing
+import uuid
 from collections import defaultdict
 from typing import List, Tuple, cast
 
@@ -532,6 +533,7 @@ def get_claim_items_plain_value(
         claim_data.append([address, fungible_asset_values])
     values: ClaimItemsValues = {
         "cd": claim_data,
+        "id": uuid.uuid4().bytes,
     }
     if memo is not None:
         values["m"] = memo

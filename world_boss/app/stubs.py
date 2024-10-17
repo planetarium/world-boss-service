@@ -46,6 +46,7 @@ ClaimItemsValues = TypedDict(
     {
         "cd": ClaimData,
         "m": NotRequired[str],
+        "id": NotRequired[bytes],
     },
 )
 ActionPlainValue = TypedDict(
