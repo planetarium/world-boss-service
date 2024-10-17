@@ -20,6 +20,7 @@ from world_boss.app.raid import (
     get_latest_raid_id,
     get_next_month_last_day,
     get_next_tx_nonce,
+    get_prepare_reward_assets_plain_value,
     get_reward_count,
     get_tx_delay_factor,
     update_agent_address,
@@ -170,11 +171,11 @@ def insert_world_boss_rewards(rows: List[RecipientRow], signer_address: str):
 def upload_prepare_reward_assets(channel_id: str, raid_id: int):
     with TaskSessionLocal() as db:
         assets = get_assets(raid_id, db)
-        result = signer.prepare_reward_assets(config.headless_url, assets)
-        decoded = bencodex.loads(bytes.fromhex(result))
+        result = get_prepare_reward_assets_plain_value(signer.address, assets)
+        serialized = bencodex.dumps(result).hex()
         client.chat_postMessage(
             channel=channel_id,
-            text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{decoded}\n\n{result}```",
+            text=f"world boss season {raid_id} prepareRewardAssets\n```plain_value:{result}\n\n{serialized}```",
         )
 
 
