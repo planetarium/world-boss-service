@@ -25,7 +25,7 @@ from world_boss.app.raid import (
     get_jwt_auth_header,
     get_transfer_assets_plain_value,
 )
-from world_boss.app.stubs import AmountDictionary, CurrencyDictionary, Recipient
+from world_boss.app.stubs import CurrencyDictionary, Recipient
 
 
 class KmsWorldBossSigner:
@@ -121,25 +121,6 @@ class KmsWorldBossSigner:
             config.planet_id, self.public_key, self.address, nonce, pv, time_stamp
         )
         return self._sign_and_save(unsigned_transaction, nonce, db)
-
-    def prepare_reward_assets(
-        self, headless_url: str, assets: typing.List[AmountDictionary]
-    ) -> str:
-        client = self._get_client(headless_url)
-        with client as session:
-            assert client.schema is not None
-            ds = DSLSchema(client.schema)
-            query = dsl_gql(
-                DSLQuery(
-                    ds.StandaloneQuery.actionQuery().select(
-                        ds.ActionQuery.prepareRewardAssets.args(
-                            rewardPoolAddress=self.address, assets=assets
-                        )
-                    )
-                )
-            )
-            result = session.execute(query)
-            return result["actionQuery"]["prepareRewardAssets"]
 
     def stage_transaction(self, headless_url: str, transaction: Transaction) -> str:
         client = self._get_client(headless_url)

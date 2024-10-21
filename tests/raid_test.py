@@ -15,9 +15,11 @@ from world_boss.app.raid import (
     bulk_insert_transactions,
     create_unsigned_tx,
     get_assets,
+    get_claim_items_plain_value,
     get_latest_raid_id,
     get_next_month_last_day,
     get_next_tx_nonce,
+    get_prepare_reward_assets_plain_value,
     get_reward_count,
     get_transfer_assets_plain_value,
     get_tx_delay_factor,
@@ -29,6 +31,7 @@ from world_boss.app.raid import (
 from world_boss.app.stubs import (
     ActionPlainValue,
     AmountDictionary,
+    ClaimItemsValues,
     RankingRewardDictionary,
     RankingRewardWithAgentDictionary,
     Recipient,
@@ -88,7 +91,7 @@ def test_update_agent_address(
 @pytest.mark.parametrize("raid_id", [1, 2])
 @pytest.mark.parametrize(
     "start_nonce, bottom, size, last_nonce",
-    [(1, 100, 100, 4), (1, 100, 50, 8), (2, 4, 100, 2), (2, 4, 1, 17)],
+    [(1, 100, 100, 6), (1, 100, 50, 12), (2, 4, 100, 2), (2, 4, 1, 25)],
 )
 def test_write_ranking_rewards_csv(
     tmp_path,
@@ -117,7 +120,7 @@ def test_write_ranking_rewards_csv(
     with open(file_name, "r") as f:
         rows = f.readlines()
         # header + fx_ranking_rewards * bottom
-        assert len(rows) == 1 + (bottom * 4)
+        assert len(rows) == 1 + (bottom * 6)
         # check header
         assert (
             rows[0]
@@ -127,7 +130,7 @@ def test_write_ranking_rewards_csv(
         # check first and last row
         for key, ranking, amount, ticker, decimal_places, nonce in [
             (1, 1, 1000000, "CRYSTAL", 18, start_nonce),
-            (-1, bottom, 300, "RUNESTONE_FENRIR3", 0, last_nonce),
+            (-1, bottom, 300, "Item_NT_800201", 0, last_nonce),
         ]:
             assert (
                 rows[key]
@@ -281,7 +284,7 @@ def test_get_transfer_assets_plain_value(memo: str):
         sender, recipients, memo
     )
     assert plain_value["type_id"] == "transfer_assets3"
-    values: TransferAssetsValues = plain_value["values"]
+    values: TransferAssetsValues = plain_value["values"]  # type: ignore
     assert values["sender"] == bytes.fromhex(sender.replace("0x", ""))
     assert values["recipients"] == [
         [
@@ -395,7 +398,9 @@ def test_bulk_insert_transactions(fx_session):
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,560,RUNESTONE_FENRIR1,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150,RUNESTONE_FENRIR2,0,175
     3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,40,RUNESTONE_FENRIR3,0,175
-    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175"""
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,560,RUNESTONE_FENRIR1,0,175
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,300,Item_NT_500000,0,175
+    3,25,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,30,Item_NT_800201,0,175"""
     rows = [r.split(",") for r in content.split("\n")]
     nonce_rows_map = {175: rows}
     bulk_insert_transactions(
@@ -407,7 +412,7 @@ def test_bulk_insert_transactions(fx_session):
         "memo",
     )
 
-    assert len(fx_session.query(Transaction).first().amounts) == 5
+    assert len(fx_session.query(Transaction).first().amounts) == 7
 
     world_boss_rewards = fx_session.query(WorldBossReward)
     for i, world_boss_reward in enumerate(world_boss_rewards):
@@ -425,6 +430,8 @@ def test_bulk_insert_transactions(fx_session):
             avatar_address = "0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4"
             amounts = [
                 ("RUNESTONE_FENRIR1", 560, 0),
+                ("Item_NT_500000", 300, 0),
+                ("Item_NT_800201", 30, 0),
             ]
 
         assert world_boss_reward.raid_id == 3
@@ -442,3 +449,158 @@ def test_bulk_insert_transactions(fx_session):
             )
             assert world_boss_reward_amount.decimal_places == decimal_places
             assert world_boss_reward_amount.amount == amount
+
+
+@pytest.mark.parametrize("memo", ["memo", None])
+def test_get_claim_items_plain_value(memo: str):
+    recipients: List[Recipient] = [
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 10,
+                "decimalPlaces": 18,
+                "ticker": "CRYSTAL",
+            },
+        },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "RUNESTONE_FENRIR1",
+            },
+        },
+        {
+            "recipient": "0x2531e5e06cBD11aF54f98D39578990716fFC7dBa",
+            "amount": {
+                "quantity": 100,
+                "decimalPlaces": 0,
+                "ticker": "Item_NT_500000",
+            },
+        },
+    ]
+    plain_value: ActionPlainValue = get_claim_items_plain_value(recipients, memo)
+    assert plain_value["type_id"] == "claim_items"
+    values: ClaimItemsValues = plain_value["values"]  # type: ignore
+    assert values["cd"] == [
+        [
+            bytes.fromhex("2531e5e06cBD11aF54f98D39578990716fFC7dBa"),
+            [
+                [
+                    {
+                        "decimalPlaces": b"\x12",
+                        "minters": None,
+                        "ticker": "FAV__CRYSTAL",
+                    },
+                    10000000000000000000,
+                ],
+                [
+                    {
+                        "decimalPlaces": b"\x00",
+                        "minters": None,
+                        "ticker": "FAV__RUNESTONE_FENRIR1",
+                    },
+                    100,
+                ],
+                [
+                    {
+                        "decimalPlaces": b"\x00",
+                        "minters": None,
+                        "ticker": "Item_NT_500000",
+                    },
+                    100,
+                ],
+            ],
+        ],
+    ]
+    assert values.get("m") == memo
+    serialized = bencodex.dumps(plain_value).hex()
+    assert serialized
+
+
+def test_get_prepare_reward_assets_plain_value(fx_session):
+    amounts: List[AmountDictionary] = [
+        {"decimalPlaces": 18, "ticker": "CRYSTAL", "quantity": 109380000},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
+        {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+        {"decimalPlaces": 0, "ticker": "Item_NT_500000", "quantity": 3000},
+        {"decimalPlaces": 0, "ticker": "Item_NT_800201", "quantity": 300},
+    ]
+    for i, amount in enumerate(amounts):
+        transaction = Transaction()
+        transaction.tx_id = str(i)
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
+        reward = WorldBossReward()
+        reward.avatar_address = "avatar_address"
+        reward.agent_address = "agent_address"
+        reward.raid_id = 1
+        reward.ranking = i
+        reward_amount = WorldBossRewardAmount()
+        reward_amount.amount = amount["quantity"]
+        reward_amount.ticker = amount["ticker"]
+        reward_amount.decimal_places = amount["decimalPlaces"]
+        reward_amount.reward = reward
+        reward_amount.transaction = transaction
+        fx_session.add(transaction)
+    fx_session.commit()
+    assets = get_assets(1, fx_session)
+    assert len(assets) == len(amounts)
+    address = "2531e5e06cBD11aF54f98D39578990716fFC7dBa"
+    plain_value: ActionPlainValue = get_prepare_reward_assets_plain_value(address, assets)  # type: ignore
+    assert plain_value["type_id"] == "prepare_reward_assets"
+    values: ClaimItemsValues = plain_value["values"]  # type: ignore
+    serialized = bencodex.dumps(plain_value).hex()
+    assert values["r"] == bytes.fromhex(address)
+    assert values["a"] == [
+        [
+            {
+                "decimalPlaces": b"\x12",
+                "minters": None,
+                "ticker": "FAV__CRYSTAL",
+            },
+            109380000000000000000000000,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "Item_NT_500000",
+            },
+            3000,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "Item_NT_800201",
+            },
+            300,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR1",
+            },
+            406545,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR2",
+            },
+            111715,
+        ],
+        [
+            {
+                "decimalPlaces": b"\x00",
+                "minters": None,
+                "ticker": "FAV__RUNESTONE_FENRIR3",
+            },
+            23890,
+        ],
+    ]

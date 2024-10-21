@@ -236,6 +236,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
         {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR1", "quantity": 406545},
         {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR2", "quantity": 111715},
         {"decimalPlaces": 0, "ticker": "RUNESTONE_FENRIR3", "quantity": 23890},
+        {"decimalPlaces": 0, "ticker": "Item_NT_500000", "quantity": 300},
     ]
     reward = WorldBossReward()
     reward.avatar_address = "avatar_address"
@@ -244,18 +245,18 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
     reward.ranking = 1
 
     for i, asset in enumerate(assets):
+        transaction = Transaction()
+        tx_id = i
+        transaction.tx_id = tx_id
+        transaction.signer = "signer"
+        transaction.payload = "payload"
+        transaction.nonce = i
         reward_amount = WorldBossRewardAmount()
         reward_amount.amount = asset["quantity"]
         reward_amount.ticker = asset["ticker"]
         reward_amount.decimal_places = asset["decimalPlaces"]
         reward_amount.reward = reward
-        tx_id = i
-        reward_amount.tx_id = tx_id
-        transaction = Transaction()
-        transaction.tx_id = tx_id
-        transaction.signer = "signer"
-        transaction.payload = "payload"
-        transaction.nonce = i
+        reward_amount.transaction = transaction
         fx_session.add(transaction)
         result.append(reward_amount)
     fx_session.commit()
@@ -270,11 +271,7 @@ def test_prepare_reward_assets(fx_test_client, celery_session_worker, fx_session
 
         m.assert_called_once_with(
             channel=config.slack_channel_id,
-            text="world boss season 3 prepareRewardAssets\n```plain_value:{'type_id': 'prepare_reward_assets', 'values': {'a': "
-            "[], 'r': "
-            "b'%1\\xe5\\xe0l\\xbd\\x11\\xafT\\xf9\\x8d9W\\x89\\x90qo\\xfc}\\xba'}}\n"
-            "\n"
-            "6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565```",
+            text="world boss season 3 prepareRewardAssets\n```plain_value:{'type_id': 'prepare_reward_assets', 'values': {'r': b'%1\\xe5\\xe0l\\xbd\\x11\\xafT\\xf9\\x8d9W\\x89\\x90qo\\xfc}\\xba', 'a': [[{'decimalPlaces': b'\\x12', 'minters': None, 'ticker': 'FAV__CRYSTAL'}, 109380000000000000000000000], [{'decimalPlaces': b'\\x00', 'minters': None, 'ticker': 'Item_NT_500000'}, 300], [{'decimalPlaces': b'\\x00', 'minters': None, 'ticker': 'FAV__RUNESTONE_FENRIR1'}, 406545], [{'decimalPlaces': b'\\x00', 'minters': None, 'ticker': 'FAV__RUNESTONE_FENRIR2'}, 111715], [{'decimalPlaces': b'\\x00', 'minters': None, 'ticker': 'FAV__RUNESTONE_FENRIR3'}, 23890]]}}\n\n6475373a747970655f69647532313a707265706172655f7265776172645f61737365747375363a76616c7565736475313a616c6c647531333a646563696d616c506c61636573313a1275373a6d696e746572736e75363a7469636b65727531323a4641565f5f4352595354414c656931303933383030303030303030303030303030303030303030303065656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727531343a4974656d5f4e545f353030303030656933303065656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727532323a4641565f5f52554e4553544f4e455f46454e52495231656934303635343565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727532323a4641565f5f52554e4553544f4e455f46454e52495232656931313137313565656c647531333a646563696d616c506c61636573313a0075373a6d696e746572736e75363a7469636b65727532323a4641565f5f52554e4553544f4e455f46454e524952336569323338393065656575313a7232303a2531e5e06cbd11af54f98d39578990716ffc7dba6565```",
         )
 
 
