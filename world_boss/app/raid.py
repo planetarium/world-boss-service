@@ -171,14 +171,12 @@ def write_ranking_rewards_csv(
 
 
 def row_to_recipient(row: RecipientRow) -> Recipient:
-    agent_address = row[2]
     avatar_address = row[3]
     amount = int(row[4])
     ticker = row[5]
     decimal_places = int(row[6])
-    recipient = agent_address if ticker == "CRYSTAL" else avatar_address
     return {
-        "recipient": recipient,
+        "recipient": avatar_address,
         "amount": {
             "quantity": amount,
             "decimalPlaces": decimal_places,
