@@ -447,7 +447,6 @@ def bulk_insert_transactions(
                 "nonce": n,
                 "signer": signer_address,
                 "payload": signed_transaction.hex(),
-                "tx_result": "CREATED",
             }
         )
         tx_ids[n] = tx_id

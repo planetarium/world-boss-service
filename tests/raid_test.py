@@ -413,7 +413,9 @@ def test_bulk_insert_transactions(fx_session):
         "memo",
     )
 
-    assert len(fx_session.query(Transaction).first().amounts) == 7
+    tx = fx_session.query(Transaction).first()
+    assert len(tx.amounts) == 7
+    assert tx.tx_result is None
 
     world_boss_rewards = fx_session.query(WorldBossReward)
     for i, world_boss_reward in enumerate(world_boss_rewards):
