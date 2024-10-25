@@ -24,6 +24,7 @@ from world_boss.app.raid import (
     get_transfer_assets_plain_value,
     get_tx_delay_factor,
     list_tx_nonce,
+    row_to_recipient,
     update_agent_address,
     write_ranking_rewards_csv,
     write_tx_result_csv,
@@ -412,7 +413,9 @@ def test_bulk_insert_transactions(fx_session):
         "memo",
     )
 
-    assert len(fx_session.query(Transaction).first().amounts) == 7
+    tx = fx_session.query(Transaction).first()
+    assert len(tx.amounts) == 7
+    assert tx.tx_result is None
 
     world_boss_rewards = fx_session.query(WorldBossReward)
     for i, world_boss_reward in enumerate(world_boss_rewards):
@@ -604,3 +607,15 @@ def test_get_prepare_reward_assets_plain_value(fx_session):
             23890,
         ],
     ]
+
+
+@pytest.mark.parametrize("ticker", ["CRYSTAL", "Item_NT_500000", "RUNESTONE_FENRIR1"])
+def test_row_to_recipient(ticker: str):
+    content = f"3,25,0x01069aaf336e6aEE605a8A54D0734b43B62f8Fe4,5b65f5D0e23383FA18d74A62FbEa383c7D11F29d,150000,{ticker},18,175"
+    row = content.split(",")
+    recipient: Recipient = row_to_recipient(row)
+    assert recipient["recipient"] == "5b65f5D0e23383FA18d74A62FbEa383c7D11F29d"
+    amount = recipient["amount"]
+    assert amount["quantity"] == 150000
+    assert amount["decimalPlaces"] == 18
+    assert amount["ticker"] == ticker
