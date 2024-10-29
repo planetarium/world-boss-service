@@ -371,6 +371,10 @@ def get_genesis_block_hash(planet_id: str) -> bytes:
         "0x000000000001": bytes.fromhex(
             "729fa26958648a35b53e8e3905d11ec53b1b4929bf5f499884aed7df616f5913"
         ),
+        # FIXME update hash before mainnet launch
+        "0x000000000003": bytes.fromhex(
+            "aa5bc2d6525eed0b78444c7c7e2ccbbf09e0f070f6f4634442d7a7c9115c751f"
+        ),
     }
 
     if planet_id not in switcher:
