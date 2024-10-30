@@ -247,12 +247,12 @@ def check_season():
     with TaskSessionLocal() as db:
         raid_id = get_latest_raid_id(db)
         total_count = data_provider_client.get_total_users_count(raid_id)
-        sync_count = offset = get_reward_count(db, raid_id)
+        sync_count = get_reward_count(db, raid_id)
+        offset = 0
         # 최신 시즌 동기화 처리
         if sync_count == total_count:
             upload_tx_list(raid_id)
             raid_id += 1
-            offset = 0
         save_ranking_rewards(
             raid_id=raid_id, payload_size=500, recipients_size=50, offset=offset
         )
@@ -272,11 +272,27 @@ def save_ranking_rewards(
     results: List[RankingRewardWithAgentDictionary] = []
     time_stamp = get_next_month_last_day()
     memo = "world boss ranking rewards by world boss signer"
+    target_avatar_addresses = []
     with TaskSessionLocal() as db:
         start_nonce = get_next_tx_nonce(db)
-        result = data_provider_client.get_ranking_rewards(
-            raid_id, NetworkType.MAIN, offset, payload_size
-        )
+        while True:
+            result = data_provider_client.get_ranking_rewards(
+                raid_id, NetworkType.MAIN, offset, payload_size
+            )
+            exist_avatar_addresses = [
+                i
+                for i, in db.query(WorldBossReward.avatar_address).filter_by(
+                    raid_id=raid_id
+                )
+            ]
+            avatar_addresses = [r["raider"]["address"] for r in result]
+            target_avatar_addresses = [
+                i for i in avatar_addresses if i not in exist_avatar_addresses
+            ]
+            if len(target_avatar_addresses) > 0:
+                break
+            else:
+                offset += payload_size
         rewards = update_agent_address(
             result, raid_id, NetworkType.MAIN, offset, payload_size
         )
@@ -288,6 +304,8 @@ def save_ranking_rewards(
             raider: RaiderWithAgentDictionary = r["raider"]
             ranking = raider["ranking"]
             avatar_address = raider["address"]
+            if avatar_address not in target_avatar_addresses:
+                continue
             reward_dict_list: List[RewardDictionary] = r["rewards"]
             for reward_dict in reward_dict_list:
                 nonce = start_nonce + int(i / recipients_size)
