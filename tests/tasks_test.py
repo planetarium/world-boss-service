@@ -417,9 +417,9 @@ def test_save_ranking_rewards(
         url=config.headless_url,
         json={"data": {"stateQuery": graphql_result}},
     )
-    save_ranking_rewards(raid_id, 500, 50, 1)
-    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_1_500")
-    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_1_500")
+    save_ranking_rewards(raid_id, 500, 50, len(rewards))
+    assert redisdb.exists(f"world_boss_{raid_id}_{network_type}_0_500")
+    assert redisdb.exists(f"world_boss_agents_{raid_id}_{network_type}_0_500")
     query = fx_session.query(Transaction)
     assert query.count() == 10
     for tx in query:

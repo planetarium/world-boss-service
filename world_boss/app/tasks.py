@@ -1,4 +1,5 @@
 import json
+import typing
 from datetime import datetime
 from tempfile import NamedTemporaryFile
 from typing import List, Tuple
@@ -248,48 +249,53 @@ def check_season():
         raid_id = get_latest_raid_id(db)
         total_count = data_provider_client.get_total_users_count(raid_id)
         sync_count = get_reward_count(db, raid_id)
-        offset = 0
         # 최신 시즌 동기화 처리
         if sync_count == total_count:
             upload_tx_list(raid_id)
             raid_id += 1
         save_ranking_rewards(
-            raid_id=raid_id, payload_size=500, recipients_size=50, offset=offset
+            raid_id=raid_id,
+            payload_size=500,
+            recipients_size=50,
+            total_count=total_count,
         )
 
 
 @celery.task()
 def save_ranking_rewards(
-    raid_id: int, payload_size: int, recipients_size: int, offset: int
+    raid_id: int, payload_size: int, recipients_size: int, total_count: int
 ):
     """
 
     :param raid_id: target season id
     :param payload_size: request payload size to data provider
     :param recipients_size: transfer_assets recipients size each tx
-    :param offset: query offset to data provider
+    :param total_count: target season total user count
     """
     results: List[RankingRewardWithAgentDictionary] = []
     time_stamp = get_next_month_last_day()
     memo = "world boss ranking rewards by world boss signer"
-    target_avatar_addresses = []
+    offset = 0
+    target_avatar_addresses: typing.Set[str] = set()
     with TaskSessionLocal() as db:
         start_nonce = get_next_tx_nonce(db)
-        while True:
-            result = data_provider_client.get_ranking_rewards(
-                raid_id, NetworkType.MAIN, offset, payload_size
-            )
-            exist_avatar_addresses = [
+        exist_avatar_addresses: typing.Set[str] = set(
+            [
                 i
                 for i, in db.query(WorldBossReward.avatar_address).filter_by(
                     raid_id=raid_id
                 )
             ]
-            avatar_addresses = [r["raider"]["address"] for r in result]
-            target_avatar_addresses = [
-                i for i in avatar_addresses if i not in exist_avatar_addresses
-            ]
-            if len(target_avatar_addresses) > 0:
+        )
+        while True:
+            result = data_provider_client.get_ranking_rewards(
+                raid_id, NetworkType.MAIN, offset, payload_size
+            )
+            avatar_addresses: typing.Set[str] = set(
+                [r["raider"]["address"] for r in result]
+            )
+            target_avatar_addresses = avatar_addresses - exist_avatar_addresses
+            if len(target_avatar_addresses) > 0 or offset >= total_count:
                 break
             else:
                 offset += payload_size
