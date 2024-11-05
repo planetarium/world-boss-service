@@ -456,9 +456,6 @@ def bulk_insert_transactions(
         tx_ids[n] = tx_id
     db.execute(insert(Transaction), tx_values)
     raid_id = int(rows[0][0])
-    exist_rankings = [
-        r for r, in db.query(WorldBossReward.ranking).filter_by(raid_id=raid_id)
-    ]
     # avatar_address : list of world boss reward amount
     world_boss_reward_amounts: dict[str, list[dict]] = {}
     # raid_id,ranking,agent_address,avatar_address,amount,ticker,decimal_places,target_nonce
@@ -473,7 +470,7 @@ def bulk_insert_transactions(
         nonce = int(row[7])
 
         # get or create world_boss_reward
-        if ranking not in exist_rankings and not world_boss_rewards.get(avatar_address):
+        if not world_boss_rewards.get(avatar_address):
             world_boss_reward = {
                 "raid_id": raid_id,
                 "ranking": ranking,
@@ -493,10 +490,12 @@ def bulk_insert_transactions(
             world_boss_reward_amounts[avatar_address] = []
         world_boss_reward_amounts[avatar_address].append(world_boss_reward_amount)
     if world_boss_rewards:
-        db.execute(insert(WorldBossReward), world_boss_rewards.values())
-    result = db.query(WorldBossReward).filter_by(raid_id=raid_id)
+        result = db.execute(
+            insert(WorldBossReward).returning(WorldBossReward),
+            world_boss_rewards.values(),
+        )
     values = []
-    for reward in result:
+    for (reward,) in result:
         exist_tickers = [i.ticker for i in reward.amounts]
         if world_boss_rewards.get(reward.avatar_address):
             for amounts in world_boss_reward_amounts[reward.avatar_address]:
