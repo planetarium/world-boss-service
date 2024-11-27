@@ -250,15 +250,17 @@ def check_season():
         total_count = data_provider_client.get_total_users_count(raid_id)
         sync_count = get_reward_count(db, raid_id)
         # 최신 시즌 동기화 처리
-        if sync_count == total_count:
+        if sync_count > 0 and sync_count == total_count:
             upload_tx_list(raid_id)
             raid_id += 1
-        save_ranking_rewards(
-            raid_id=raid_id,
-            payload_size=500,
-            recipients_size=50,
-            total_count=total_count,
-        )
+        # 동기화 대상이 있을 경우에만 요청
+        if total_count > 0:
+            save_ranking_rewards(
+                raid_id=raid_id,
+                payload_size=500,
+                recipients_size=50,
+                total_count=total_count,
+            )
 
 
 @celery.task()
