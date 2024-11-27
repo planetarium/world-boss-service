@@ -365,15 +365,17 @@ def append_signature_to_unsigned_tx(unsigned_tx: bytes, signature: bytes) -> byt
 
 def get_genesis_block_hash(planet_id: str) -> bytes:
     switcher = {
+        # odin
         "0x000000000000": bytes.fromhex(
             "4582250d0da33b06779a8475d283d5dd210c683b9b999d74d03fac4f58fa6bce"
         ),
+        # heimdall
         "0x000000000001": bytes.fromhex(
             "729fa26958648a35b53e8e3905d11ec53b1b4929bf5f499884aed7df616f5913"
         ),
-        # FIXME update hash before mainnet launch
+        # thor
         "0x000000000003": bytes.fromhex(
-            "aa5bc2d6525eed0b78444c7c7e2ccbbf09e0f070f6f4634442d7a7c9115c751f"
+            "bde462fd59de5ccba8495ebb163b124bf77ddc82cfc8b2f9fb57c00fc6e133b7"
         ),
     }
 
