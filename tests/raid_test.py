@@ -346,7 +346,7 @@ def test_create_unsigned_tx(
         b"l": 4,
         b"m": [
             {"decimalPlaces": b"\x12", "minters": None, "ticker": "Mead"},
-            1000000000000000000,
+            10_000_000_000_000,
         ],
         b"n": 1,
         b"p": public_key,

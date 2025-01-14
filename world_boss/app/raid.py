@@ -335,7 +335,7 @@ def create_unsigned_tx(
             # MaxGasPrice (see also Mead section for the currency spec)
             b"m": [
                 {"decimalPlaces": b"\x12", "minters": None, "ticker": "Mead"},
-                1000000000000000000,
+                10_000_000_000_000,
             ],
             # Nonce
             b"n": nonce,
